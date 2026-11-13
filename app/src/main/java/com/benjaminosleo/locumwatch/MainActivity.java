@@ -58,6 +58,11 @@ public class MainActivity extends Activity {
         accessBtn = button(col, "Step 1: allow notification access",
             v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
         batteryBtn = button(col, "Step 2: stop battery saving for this app", v -> askBattery());
+        button(col, "Reconnect to WhatsApp notifications", v -> {
+            WaListener.ensureBound(this, true);
+            Toast.makeText(this, "Reconnecting\u2026", Toast.LENGTH_SHORT).show();
+            status.postDelayed(this::refresh, 2000);
+        });
         button(col, "Test the alarm (30 seconds)",
             v -> AlarmService.start(this, "TEST", "Test alarm from the app. Tap STOP ALARM to silence it.", true));
         button(col, "Send status to her iPhone", v -> {
@@ -95,10 +100,29 @@ public class MainActivity extends Activity {
         WatchService.start(this);
     }
 
+    // Refresh the screen whenever the app records something, while it is open.
+    private final android.content.SharedPreferences.OnSharedPreferenceChangeListener live =
+        (sp, key) -> runOnUiThread(this::refreshStatusAndLog);
+
     @Override
     protected void onResume() {
         super.onResume();
+        WaListener.rebindIfNeeded(this);
         refresh();
+        prefs.listen(live);
+    }
+
+    @Override
+    protected void onPause() {
+        prefs.unlisten(live);
+        super.onPause();
+    }
+
+    private void refreshStatusAndLog() {
+        status.setText(Commands.statusText(this));
+        String l = prefs.log();
+        log.setText(l.isEmpty() ? "Nothing yet. Messages in the watched groups will appear here." : l);
+        armed.setChecked(prefs.isArmed());
     }
 
     private void refresh() {

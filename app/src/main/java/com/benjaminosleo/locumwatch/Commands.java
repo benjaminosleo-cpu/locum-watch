@@ -73,7 +73,11 @@ final class Commands {
         Prefs p = new Prefs(c);
         StringBuilder b = new StringBuilder();
         b.append("Alarm: ").append(p.isArmed() ? "ON" : "OFF").append('\n');
-        b.append("WhatsApp access: ").append(WaListener.isEnabled(c) ? "OK" : "NOT GRANTED").append('\n');
+        b.append("WhatsApp access: ").append(WaListener.isEnabled(c) ? "OK" : "NOT GRANTED")
+            .append(WaListener.isConnected() ? ", listening" : ", NOT listening").append('\n');
+        long any = p.lastAnyNotifAt();
+        b.append("Last WhatsApp notification (any chat): ")
+            .append(any == 0 ? "none yet" : when(any) + " (" + ago(any) + ", " + p.lastAnyNotif() + ")").append('\n');
         b.append("Battery: ").append(battery(c)).append('\n');
         long wa = p.lastWhatsAppAt();
         b.append("Last group message seen: ").append(wa == 0 ? "none yet" : when(wa) + " (" + ago(wa) + ")").append('\n');

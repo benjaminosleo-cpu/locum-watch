@@ -23,6 +23,7 @@ public class BootReceiver extends BroadcastReceiver {
                 break;
             case Scheduler.ACTION_WATCHDOG:
                 WatchService.start(c);
+                WaListener.ensureBound(c, false);
                 break;
             case Scheduler.ACTION_CHECKIN:
                 WatchService.start(c);

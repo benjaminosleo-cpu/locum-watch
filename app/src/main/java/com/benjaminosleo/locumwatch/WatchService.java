@@ -53,6 +53,9 @@ public class WatchService extends Service {
         worker = new Thread(this::streamLoop, "ntfy-listener");
         worker.start();
         Scheduler.scheduleAll(this);
+        // Give the system a moment to bind the listener after a restart, then check.
+        new android.os.Handler(android.os.Looper.getMainLooper())
+            .postDelayed(() -> WaListener.rebindIfNeeded(this), 10_000);
     }
 
     @Override

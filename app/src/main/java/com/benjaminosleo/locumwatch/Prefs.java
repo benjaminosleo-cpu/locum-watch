@@ -67,6 +67,16 @@ public final class Prefs implements LocumEngine.State {
         sp.edit().putLong("lastWaAt", at).putString("lastWa", summary).apply();
     }
 
+    /** Last WhatsApp notification of any kind (any chat): proves the listener is alive. */
+    public long lastAnyNotifAt() { return sp.getLong("lastAnyAt", 0); }
+    public String lastAnyNotif() { return sp.getString("lastAny", ""); }
+    public void setLastAnyNotif(long at, String chat) {
+        sp.edit().putLong("lastAnyAt", at).putString("lastAny", chat).apply();
+    }
+
+    public void listen(SharedPreferences.OnSharedPreferenceChangeListener l) { sp.registerOnSharedPreferenceChangeListener(l); }
+    public void unlisten(SharedPreferences.OnSharedPreferenceChangeListener l) { sp.unregisterOnSharedPreferenceChangeListener(l); }
+
     public synchronized void addLog(String line) {
         String stamp = new SimpleDateFormat("dd/MM HH:mm", Locale.UK).format(new Date());
         String all = stamp + "  " + line + "\n" + sp.getString("log", "");

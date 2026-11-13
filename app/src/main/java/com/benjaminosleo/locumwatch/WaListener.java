@@ -29,7 +29,14 @@ public class WaListener extends NotificationListenerService {
     @Override
     public void onListenerDisconnected() {
         instance = null;
+        new Prefs(this).addLog("WhatsApp notification access disconnected by Android; reconnecting");
         requestRebind(new ComponentName(this, WaListener.class));
+    }
+
+    @Override
+    public void onDestroy() {
+        instance = null;
+        super.onDestroy();
     }
 
     @Override
@@ -53,6 +60,8 @@ public class WaListener extends NotificationListenerService {
         String conv = str(ex.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE));
         String title = str(ex.getCharSequence(Notification.EXTRA_TITLE));
         String text = str(ex.getCharSequence(Notification.EXTRA_TEXT));
+
+        p.setLastAnyNotif(System.currentTimeMillis(), conv.isEmpty() ? title : conv);
 
         String group = MessageParsing.matchGroup(conv, groups);
         if (group == null) group = MessageParsing.matchGroup(title, groups);
@@ -80,6 +89,11 @@ public class WaListener extends NotificationListenerService {
             if (m != null) msgs.add(m);
         }
 
+        if (msgs.isEmpty()) {
+            p.addLog(group + " | notification with no readable message (title: " + shorten(title, 40)
+                + ", text: " + shorten(text, 60) + ")");
+            return;
+        }
         long now = System.currentTimeMillis();
         for (MessageParsing.Msg m : msgs) {
             LocumEngine.Outcome o = ENGINE.evaluate(m, now, p);
@@ -113,6 +127,33 @@ public class WaListener extends NotificationListenerService {
     }
 
     static boolean isConnected() { return instance != null; }
+
+    /**
+     * Android 9 sometimes drops a notification listener (after an app restart or update)
+     * and never reconnects it. If access is granted but we are not connected, ask for a
+     * rebind; with force, also toggle the component, which makes the system bind afresh.
+     */
+    /** Gentle: just ask the system to rebind if we are not connected. */
+    static void rebindIfNeeded(Context c) {
+        if (!isEnabled(c) || isConnected()) return;
+        try { requestRebind(new ComponentName(c, WaListener.class)); } catch (Throwable ignored) { }
+    }
+
+    static void ensureBound(Context c, boolean force) {
+        if (!isEnabled(c)) return;
+        if (isConnected() && !force) return;
+        ComponentName cn = new ComponentName(c, WaListener.class);
+        try { requestRebind(cn); } catch (Throwable ignored) { }
+        if (force || !isConnected()) {
+            android.content.pm.PackageManager pm = c.getPackageManager();
+            pm.setComponentEnabledSetting(cn, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                android.content.pm.PackageManager.DONT_KILL_APP);
+            pm.setComponentEnabledSetting(cn, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                android.content.pm.PackageManager.DONT_KILL_APP);
+            try { requestRebind(cn); } catch (Throwable ignored) { }
+            new Prefs(c).addLog("Reconnected to WhatsApp notifications" + (force ? " (button)" : " (was disconnected)"));
+        }
+    }
 
     private static String str(CharSequence cs) { return cs == null ? "" : cs.toString(); }
 
