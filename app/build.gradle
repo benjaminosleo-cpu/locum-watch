@@ -1,0 +1,59 @@
+plugins {
+    id 'com.android.application'
+}
+
+def envVersionName = (System.getenv("VERSION_NAME") ?: "0.0.1").replaceFirst(/^v/, "")
+def envVersionCode = (System.getenv("VERSION_CODE") ?: "1") as int
+
+android {
+    namespace 'com.benjaminosleo.locumwatch'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.benjaminosleo.locumwatch'
+        minSdk 26
+        targetSdk 34
+        versionCode envVersionCode
+        versionName envVersionName
+    }
+
+    signingConfigs {
+        release {
+            // Private repo, personal app: the keystore lives in the repo so every
+            // CI build is signed with the same key and Obtainium updates install cleanly.
+            storeFile file('../keystore/locum-watch.jks')
+            storePassword 'locumwatch'
+            keyAlias 'locumwatch'
+            keyPassword 'locumwatch'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+        debug {
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+}

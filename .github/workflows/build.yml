@@ -1,0 +1,48 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+
+      - name: Test and build
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: ${{ github.ref_type == 'tag' && github.ref_name || format('0.0.{0}', github.run_number) }}
+        run: gradle --no-daemon testDebugUnitTest assembleRelease
+
+      - name: Name the APK
+        run: |
+          NAME="${{ github.ref_type == 'tag' && github.ref_name || format('build-{0}', github.run_number) }}"
+          cp app/build/outputs/apk/release/app-release.apk "locum-watch-${NAME}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: locum-watch-apk
+          path: locum-watch-*.apk
+
+      - name: Publish release (tags only)
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: locum-watch-*.apk
+          generate_release_notes: true
