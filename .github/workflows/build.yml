@@ -1,19 +1,15 @@
 name: build
 
+# Every push to main: run the tests (including a replay of the whole group history),
+# build the signed APK and, if all passes, publish it as a GitHub Release
+# v<VERSION>.<run number>. Obtainium follows these releases.
 on:
   push:
     branches: [main]
-    tags: ['v*']
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
   contents: write
-
-env:
-  # A release (or tag) build is named after its tag; other builds are 0.0.<run>.
-  TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || (github.ref_type == 'tag' && github.ref_name || '') }}
 
 jobs:
   build:
@@ -30,24 +26,27 @@ jobs:
         with:
           gradle-version: '8.14.3'
 
+      - name: Work out the version
+        run: echo "VERSION_NAME=$(tr -d '[:space:]' < VERSION).${{ github.run_number }}" >> "$GITHUB_ENV"
+
       - name: Test and build
         env:
           VERSION_CODE: ${{ github.run_number }}
-        run: |
-          export VERSION_NAME="${TAG:-0.0.${{ github.run_number }}}"
-          gradle --no-daemon testDebugUnitTest assembleRelease
+        run: gradle --no-daemon testDebugUnitTest assembleRelease
 
       - name: Name the APK
-        run: cp app/build/outputs/apk/release/app-release.apk "locum-watch-${TAG:-build-${{ github.run_number }}}.apk"
+        run: cp app/build/outputs/apk/release/app-release.apk "locum-watch-v${VERSION_NAME}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
           name: locum-watch-apk
           path: locum-watch-*.apk
 
-      - name: Attach APK to the release
-        if: env.TAG != ''
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.TAG }}
+          tag_name: v${{ env.VERSION_NAME }}
+          target_commitish: ${{ github.sha }}
+          name: Locum Watch v${{ env.VERSION_NAME }}
+          body: ${{ github.event.head_commit.message }}
           files: locum-watch-*.apk

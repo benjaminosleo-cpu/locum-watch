@@ -16,9 +16,9 @@ rings a loud bedside alarm when someone posts a locum request.
 
 ## Build and install
 
-GitHub Actions runs the unit tests (including a replay of the whole group history) and
-builds a signed APK on every push. Pushing a tag `vX.Y.Z` publishes a GitHub Release with
-the APK attached, which Obtainium picks up.
+Every push to `main` runs the unit tests (including a replay of the whole group history),
+builds a signed APK and, if everything passes, publishes it as GitHub Release
+`v<VERSION>.<run number>`. Obtainium follows these releases. Bump `VERSION` for bigger changes.
 
 The signing key is in `keystore/` (private repo) so every build is signed the same way.
 
