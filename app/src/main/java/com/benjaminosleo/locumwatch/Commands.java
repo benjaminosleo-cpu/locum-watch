@@ -46,11 +46,16 @@ final class Commands {
 
     /** Sends a message to her iPhone: ntfy always (free), Pushover too if set up. */
     static void reply(Context c, String title, String message, boolean urgent) {
+        reply(c, title, message, urgent, Math.max(60, new Prefs(c).alarmMinutes() * 60));
+    }
+
+    /** urgent = ntfy max priority + Pushover emergency (repeats for expireSeconds unless acknowledged). */
+    static void reply(Context c, String title, String message, boolean urgent, int expireSeconds) {
         Prefs p = new Prefs(c);
         String topic = p.replyTopic();
         boolean po = p.hasPushover();
         String token = p.pushoverToken(), user = p.pushoverUser();
-        int expire = Math.max(60, p.alarmMinutes() * 60);
+        int expire = expireSeconds;
         Net.async(() -> {
             Net.ntfy(topic, title, message, urgent ? 5 : 3);
             if (po) Net.pushover(token, user, title, message, urgent ? 2 : 0, expire);

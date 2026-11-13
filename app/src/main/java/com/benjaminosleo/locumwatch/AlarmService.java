@@ -77,8 +77,10 @@ public class AlarmService extends Service {
         handler.postDelayed(timeout, ms);
 
         if (test) {
+            // A test also checks the iPhone side: urgent, so Pushover (if set up) sends a
+            // short Critical Alert too.
             Commands.reply(this, "Locum alarm: test",
-                "The bedside phone is ringing now (" + TEST_SECONDS + " seconds).", false);
+                "The bedside phone is ringing now (" + TEST_SECONDS + " seconds).", true, 120);
         } else {
             Commands.reply(this, "LOCUM: " + sender, text, true);
         }
