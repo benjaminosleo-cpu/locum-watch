@@ -17,9 +17,14 @@ public class BootReceiver extends BroadcastReceiver {
             case Intent.ACTION_MY_PACKAGE_REPLACED:
                 WatchService.start(c);
                 Scheduler.scheduleAll(c);
-                try {
-                    NotificationListenerService.requestRebind(new ComponentName(c, WaListener.class));
-                } catch (Throwable ignored) { }
+                if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(a)) {
+                    // Android 9 often leaves the listener unbound after an update: force it.
+                    WaListener.ensureBound(c, true);
+                } else {
+                    try {
+                        NotificationListenerService.requestRebind(new ComponentName(c, WaListener.class));
+                    } catch (Throwable ignored) { }
+                }
                 break;
             case Scheduler.ACTION_WATCHDOG:
                 WatchService.start(c);

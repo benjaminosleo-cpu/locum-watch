@@ -49,9 +49,18 @@ public final class MessageParsing {
      * Fallback for notifications without per-message data: title + text only.
      * Handles "Group" + "Sender: text", "Sender @ Group" + "text", "Group: Sender" + "text".
      */
+    private static final Pattern SUMMARY_TEXT =
+        Pattern.compile("^\\d+\\s+(new\\s+)?messages?(\\s+from\\s+\\d+\\s+chats?)?$", Pattern.CASE_INSENSITIVE);
+
+    /** WhatsApp's "4 new messages" style summary lines carry no message of their own. */
+    public static boolean isSummaryText(String text) {
+        return text != null && SUMMARY_TEXT.matcher(text.trim()).matches();
+    }
+
     public static Msg parseTitleText(String title, String text, List<String> groups) {
         String group = matchGroup(title, groups);
         if (group == null) return null;
+        if (isSummaryText(text)) return null;
         String t = cleanTitle(title);
         String body = text == null ? "" : text.trim();
         String sender = "";

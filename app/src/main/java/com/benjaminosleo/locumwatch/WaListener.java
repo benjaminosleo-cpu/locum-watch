@@ -19,6 +19,7 @@ public class WaListener extends NotificationListenerService {
     private static final String TAG = "LocumWatch";
     private static final LocumEngine ENGINE = new LocumEngine();
     private static volatile WaListener instance;
+    private static volatile long intentionalReconnectAt;
 
     @Override
     public void onListenerConnected() {
@@ -29,7 +30,9 @@ public class WaListener extends NotificationListenerService {
     @Override
     public void onListenerDisconnected() {
         instance = null;
-        new Prefs(this).addLog("WhatsApp notification access disconnected by Android; reconnecting");
+        if (System.currentTimeMillis() - intentionalReconnectAt > 10_000) {
+            new Prefs(this).addLog("WhatsApp notification access dropped by Android; reconnecting");
+        }
         requestRebind(new ComponentName(this, WaListener.class));
     }
 
@@ -54,6 +57,8 @@ public class WaListener extends NotificationListenerService {
     private void handle(Notification n) {
         Bundle ex = n.extras;
         if (ex == null) return;
+        // WhatsApp's bundle summary ("4 new messages") repeats what the chat notification holds.
+        if ((n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return;
         Prefs p = new Prefs(this);
         List<String> groups = p.groups();
 
@@ -145,13 +150,14 @@ public class WaListener extends NotificationListenerService {
         ComponentName cn = new ComponentName(c, WaListener.class);
         try { requestRebind(cn); } catch (Throwable ignored) { }
         if (force || !isConnected()) {
+            intentionalReconnectAt = System.currentTimeMillis();
             android.content.pm.PackageManager pm = c.getPackageManager();
             pm.setComponentEnabledSetting(cn, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                 android.content.pm.PackageManager.DONT_KILL_APP);
             pm.setComponentEnabledSetting(cn, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
                 android.content.pm.PackageManager.DONT_KILL_APP);
             try { requestRebind(cn); } catch (Throwable ignored) { }
-            new Prefs(c).addLog("Reconnected to WhatsApp notifications" + (force ? " (button)" : " (was disconnected)"));
+            new Prefs(c).addLog("Reconnected to WhatsApp notifications" + (force ? "" : " (was disconnected)"));
         }
     }
 

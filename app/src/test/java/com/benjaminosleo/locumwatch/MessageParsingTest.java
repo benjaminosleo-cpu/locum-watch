@@ -35,6 +35,13 @@ public class MessageParsingTest {
     }
 
     @Test
+    public void summaryLinesIgnored() {
+        assertNull(MessageParsing.parseTitleText("Locum Alarm Test", "4 new messages", GROUPS));
+        assertNull(MessageParsing.parseTitleText("ENT Locums Group", "12 messages from 3 chats", GROUPS));
+        assertEquals("Locum at MRI", MessageParsing.parseTitleText("Locum Alarm Test", "Ben: Locum at MRI", GROUPS).text);
+    }
+
+    @Test
     public void otherChatsIgnored() {
         assertNull(MessageParsing.parseTitleText("Family", "Mum: SHO needed tonight", GROUPS));
         assertEquals("Locum Alarm Test", MessageParsing.matchGroup("locum alarm test", GROUPS));
