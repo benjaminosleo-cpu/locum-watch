@@ -38,7 +38,16 @@ public class AlarmService extends Service {
     private PowerManager.WakeLock wakeLock;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private int savedVolume = -1;
-    private final Runnable timeout = this::finishAlarm;
+    private boolean testAlarm;
+    private android.media.ToneGenerator beeper;
+    private final Runnable timeout = () -> finishAlarm(true);
+    private final Runnable beepLoop = new Runnable() {
+        @Override public void run() {
+            if (beeper == null) return;
+            beeper.startTone(android.media.ToneGenerator.TONE_CDMA_EMERGENCY_RINGBACK, 1000);
+            handler.postDelayed(this, 1500);
+        }
+    };
 
     public static void start(Context c, String sender, String text, boolean test) {
         Intent i = new Intent(c, AlarmService.class).setAction(ACTION_START)
@@ -56,12 +65,13 @@ public class AlarmService extends Service {
         if (!ACTION_START.equals(action)) {
             // Must still call startForeground if started with startForegroundService.
             startForeground(NOTIF_ID, buildNotification("Locum Watch", "Stopping alarm", null));
-            finishAlarm();
+            finishAlarm(false);
             return START_NOT_STICKY;
         }
         String sender = intent.getStringExtra(EXTRA_SENDER);
         String text = intent.getStringExtra(EXTRA_TEXT);
         boolean test = intent.getBooleanExtra(EXTRA_TEST, false);
+        testAlarm = test;
 
         Intent show = new Intent(this, AlarmActivity.class)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -153,6 +163,18 @@ public class AlarmService extends Service {
             }
         }
 
+        if (player == null) {
+            // No ringtone file could be played: fall back to generated beeps on the alarm stream.
+            new Prefs(this).addLog("No alarm sound file could be played; using beeps instead");
+            try {
+                beeper = new android.media.ToneGenerator(AudioManager.STREAM_ALARM, 100);
+                handler.post(beepLoop);
+            } catch (Throwable t) {
+                Log.e(TAG, "no sound at all", t);
+                new Prefs(this).addLog("ERROR: the alarm could not make any sound: " + t);
+            }
+        }
+
         vibrator = getSystemService(Vibrator.class);
         if (vibrator != null && vibrator.hasVibrator()) {
             vibrator.vibrate(VibrationEffect.createWaveform(new long[]{0, 900, 600}, 0), attrs);
@@ -161,6 +183,8 @@ public class AlarmService extends Service {
 
     private void stopSound() {
         handler.removeCallbacks(timeout);
+        handler.removeCallbacks(beepLoop);
+        if (beeper != null) { beeper.release(); beeper = null; }
         if (player != null) {
             try { player.stop(); } catch (Exception ignored) { }
             player.release();
@@ -176,7 +200,13 @@ public class AlarmService extends Service {
         wakeLock = null;
     }
 
-    private void finishAlarm() {
+    private void finishAlarm(boolean timedOut) {
+        if (timedOut && !testAlarm) {
+            int min = new Prefs(this).alarmMinutes();
+            new Prefs(this).addLog("Alarm rang for " + min + " min and nobody stopped it");
+            Commands.reply(this, "Locum alarm was not answered",
+                "The bedside phone rang for " + min + " minutes and nobody tapped STOP.", false);
+        }
         stopSound();
         sendBroadcast(new Intent(ACTION_FINISHED).setPackage(getPackageName()));
         stopForeground(true);

@@ -26,8 +26,8 @@ public final class LocumEngine {
     /** State the engine reads and updates. Android backs this with SharedPreferences. */
     public interface State {
         boolean isArmed();
-        long lastAlarmAt();
-        void setLastAlarmAt(long t);
+        long lastAlarmAt(String group);
+        void setLastAlarmAt(String group, long t);
         long lastSeenMessageTime(String group);
         void setLastSeenMessageTime(String group, long t);
         long cooldownMillis();
@@ -45,19 +45,19 @@ public final class LocumEngine {
     private static final long TIMED_WINDOW_MS = 6L * 60 * 60 * 1000;
 
     public synchronized Outcome evaluate(MessageParsing.Msg m, long now, State st) {
-        // Per-message data (has a timestamp) with no sender = a message she sent herself.
-        if (m.time > 0 && m.sender.isEmpty()) return Outcome.OWN_MESSAGE;
+        // A timestamp well in the future is bogus; don't let it block later messages.
+        long time = m.time > now + 5 * 60_000L ? now : m.time;
 
         // WhatsApp re-posts the recent conversation with every new message, so each
         // message is judged once: by exact key while it is recent, and anything clearly
         // older than the newest message seen (that survives a restart) is a repeat.
-        String key = m.group + "|" + m.time + "|" + m.sender + "|" + m.text;
-        if (m.time > 0) {
+        String key = m.group + "|" + time + "|" + m.sender + "|" + m.text;
+        if (time > 0) {
             long last = st.lastSeenMessageTime(m.group);
             if (recentTimed.containsKey(key)) return Outcome.DUPLICATE;
-            if (m.time < last - OUT_OF_ORDER_GRACE_MS) return Outcome.DUPLICATE;
-            long newest = Math.max(last, m.time);
-            recentTimed.put(key, m.time);
+            if (time < last - OUT_OF_ORDER_GRACE_MS) return Outcome.DUPLICATE;
+            long newest = Math.max(last, time);
+            recentTimed.put(key, time);
             recentTimed.values().removeIf(t -> t < newest - TIMED_WINDOW_MS);
             st.setLastSeenMessageTime(m.group, newest);
         } else {
@@ -66,11 +66,14 @@ public final class LocumEngine {
             recentUntimed.put(key, now);
         }
 
+        // Per-message data (has a timestamp) with no sender = a message she sent herself.
+        if (time > 0 && m.sender.isEmpty()) return Outcome.OWN_MESSAGE;
         if (!LocumFilter.isAlarm(m.sender, m.text)) return Outcome.NOT_REQUEST;
-        if (m.time > 0 && now - m.time > MAX_AGE_MS) return Outcome.TOO_OLD;
+        if (time > 0 && now - time > MAX_AGE_MS) return Outcome.TOO_OLD;
         if (!st.isArmed()) return Outcome.SWITCHED_OFF;
-        if (now - st.lastAlarmAt() < st.cooldownMillis()) return Outcome.COOLDOWN;
-        st.setLastAlarmAt(now);
+        // The quiet hour is per group, so a test-group alarm never silences the real group.
+        if (now - st.lastAlarmAt(m.group) < st.cooldownMillis()) return Outcome.COOLDOWN;
+        st.setLastAlarmAt(m.group, now);
         return Outcome.ALARM;
     }
 

@@ -43,8 +43,8 @@ public final class LocumFilter {
     private static final Pattern O_LOOKING = Pattern.compile("looking for some(one|body)");
 
     public static boolean isKaren(String sender) {
-        String s = lower(sender);
-        return s.contains("karen") && s.contains("rota");
+        // "Karen (ENT rota)" normally; still match if the contact is renamed or shows as "~Karen".
+        return lower(sender).contains("karen");
     }
 
     public static boolean isLocumRequest(String text) {

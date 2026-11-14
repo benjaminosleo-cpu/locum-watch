@@ -7,8 +7,11 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.util.Log;
 
 import org.json.JSONObject;
@@ -21,18 +24,25 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Always-on foreground service: keeps the app alive and listens to the private ntfy
- * topic for "on", "off", "status" and "test" from her iPhone shortcuts.
+ * Always-on foreground service. It keeps the app alive, listens to the private ntfy
+ * topic for "on", "off", "status" and "test" from her iPhone shortcuts, and runs a
+ * heartbeat that proves the WhatsApp notification feed is still being delivered.
  */
 public class WatchService extends Service {
     private static final String TAG = "LocumWatch";
     static final String CH_STATUS = "status";
     private static final int NOTIF_ID = 1;
     private static final long COMMAND_MAX_AGE_S = 10 * 60; // ignore commands older than 10 min
+    private static final long BEAT_MS = 5 * 60_000L;
 
+    private static volatile WatchService instance;
     private volatile boolean running;
     private Thread worker;
     private volatile HttpURLConnection current;
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private int missedBeats;
+    private int beatsDone;
 
     public static void start(Context c) {
         try {
@@ -45,23 +55,58 @@ public class WatchService extends Service {
     /** Update the ongoing notification (e.g. after switching on/off). */
     public static void refresh(Context c) { start(c); }
 
+    /** Drop the ntfy connection so it reconnects with the current switch code. */
+    static void restartStream() {
+        WatchService s = instance;
+        if (s == null) return;
+        HttpURLConnection c = s.current;
+        if (c != null) Net.async(c::disconnect);
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
+        instance = this;
         startForeground(NOTIF_ID, buildNotification());
         running = true;
         worker = new Thread(this::streamLoop, "ntfy-listener");
         worker.start();
         Scheduler.scheduleAll(this);
-        // Give the system a moment to bind the listener after a restart, then check.
-        new android.os.Handler(android.os.Looper.getMainLooper())
-            .postDelayed(() -> WaListener.rebindIfNeeded(this), 10_000);
+        // First heartbeats soon after start (catches a listener left unbound by an update
+        // or reboot within about a minute), then every 5 minutes.
+        handler.postDelayed(beat, 20_000);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         getSystemService(NotificationManager.class).notify(NOTIF_ID, buildNotification());
         return START_STICKY;
+    }
+
+    // ---------- heartbeat: is Android still handing us notifications? ----------
+    private final Runnable beat = new Runnable() {
+        @Override public void run() {
+            final long sent = SystemClock.elapsedRealtime();
+            // Re-posting our own notification should come straight back through WaListener.
+            getSystemService(NotificationManager.class).notify(NOTIF_ID, buildNotification());
+            handler.postDelayed(() -> checkBeat(sent), 15_000);
+            beatsDone++;
+            handler.postDelayed(this, beatsDone < 3 ? 40_000 : BEAT_MS);
+        }
+    };
+
+    private void checkBeat(long sent) {
+        if (!WaListener.isEnabled(this) || WaListener.lastSelfSeenAt >= sent) {
+            missedBeats = 0;
+            return;
+        }
+        missedBeats++;
+        if (missedBeats == 1) {
+            WaListener.requestRebindNow(this);
+        } else {
+            missedBeats = 0;
+            WaListener.forceRebind(this, "notifications had stopped arriving");
+        }
     }
 
     private Notification buildNotification() {
@@ -82,9 +127,11 @@ public class WatchService extends Service {
                 : "Needs notification access: tap to open")
             .setContentIntent(open)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .build();
     }
 
+    // ---------- the on/off switch (ntfy) ----------
     private void streamLoop() {
         long backoff = 5_000;
         Prefs p = new Prefs(this);
@@ -105,12 +152,27 @@ public class WatchService extends Service {
                     String line;
                     while (running && (line = r.readLine()) != null) {
                         if (line.trim().isEmpty()) continue;
+                        if (!topic.equals(p.topic())) break; // switch code changed in settings
                         JSONObject o = new JSONObject(line);
-                        if (!"message".equals(o.optString("event"))) continue;
+                        String event = o.optString("event");
+                        long serverTime = o.optLong("time", 0);
+                        long nowS = System.currentTimeMillis() / 1000;
+                        if ("open".equals(event) && serverTime > 0) {
+                            // The server's clock tells us if this phone's clock has drifted.
+                            p.setClockSkewSeconds(nowS - serverTime);
+                        }
+                        if (!"message".equals(event)) continue;
                         p.setNtfyLastId(o.optString("id"));
-                        long ageS = System.currentTimeMillis() / 1000 - o.optLong("time", 0);
-                        if (ageS > COMMAND_MAX_AGE_S) continue; // replayed after an outage
-                        handleWithWakeLock(o.optString("message"));
+                        String msg = o.optString("message");
+                        // Judge age by the server's clock where we can, so a wrong phone clock
+                        // cannot make every command look stale.
+                        long ageS = nowS - p.clockSkewSeconds() - serverTime;
+                        if (ageS > COMMAND_MAX_AGE_S) {
+                            p.addLog("Ignored old switch command \"" + WaListener.shorten(msg, 20)
+                                + "\" (" + (ageS / 60) + " min old)");
+                            continue;
+                        }
+                        handleWithWakeLock(msg);
                     }
                 } finally {
                     c.disconnect();
@@ -130,7 +192,12 @@ public class WatchService extends Service {
         PowerManager.WakeLock wl = getSystemService(PowerManager.class)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LocumWatch:command");
         wl.acquire(30_000); // released by timeout, so the async reply has time to send
-        Commands.handle(this, msg);
+        try {
+            Commands.handle(this, msg);
+        } catch (Throwable t) {
+            Log.e(TAG, "command failed", t);
+            new Prefs(this).addLog("ERROR handling switch command: " + t);
+        }
     }
 
     private static void sleep(long ms) {
@@ -140,8 +207,10 @@ public class WatchService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        instance = null;
+        handler.removeCallbacksAndMessages(null);
         HttpURLConnection c = current;
-        if (c != null) c.disconnect();
+        if (c != null) Net.async(c::disconnect);
         if (worker != null) worker.interrupt();
         super.onDestroy();
     }

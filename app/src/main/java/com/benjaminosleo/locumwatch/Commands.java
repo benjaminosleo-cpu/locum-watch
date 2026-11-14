@@ -12,7 +12,7 @@ import java.util.Locale;
 
 /** The on/off switch commands from her iPhone, status text and the daily check-in. */
 final class Commands {
-    private static final long STALE_MS = 48L * 60 * 60 * 1000;
+    private static final long STALE_MS = 72L * 60 * 60 * 1000;
 
     private Commands() {}
 
@@ -62,31 +62,58 @@ final class Commands {
         });
     }
 
-    static void checkIn(Context c) {
+    /** Things that would stop the alarm working. Empty = healthy. */
+    static java.util.List<String> problems(Context c) {
         Prefs p = new Prefs(c);
-        boolean stale = p.lastWhatsAppAt() > 0 && System.currentTimeMillis() - p.lastWhatsAppAt() > STALE_MS;
-        boolean problem = !WaListener.isEnabled(c) || stale || p.lastWhatsAppAt() == 0;
-        reply(c, problem ? "Locum Watch: please check the spare phone" : "Locum Watch OK", statusText(c), false);
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (!WaListener.isEnabled(c)) out.add("Notification access is NOT granted");
+        else if (!WaListener.isReceiving()) out.add("Notifications are not reaching the app (it will try to reconnect)");
+        android.os.PowerManager pm = c.getSystemService(android.os.PowerManager.class);
+        if (pm.isPowerSaveMode()) out.add("Battery Saver is ON: turn it off, it delays WhatsApp");
+        if (!pm.isIgnoringBatteryOptimizations(c.getPackageName())) out.add("Battery saving is not switched off for this app");
+        if (!isCharging(c)) out.add("The phone is not charging");
+        long skew = Math.abs(p.clockSkewSeconds());
+        if (skew > 120) out.add("The phone's clock is off by " + (skew / 60) + " min: turn on automatic date and time");
+        long any = p.lastAnyNotifAt();
+        if (any > 0 && System.currentTimeMillis() - any > STALE_MS) {
+            out.add("No WhatsApp notification from any chat for " + ago(any).replace(" ago", "")
+                + ": check WhatsApp is still linked");
+        }
+        return out;
+    }
+
+    static void checkIn(Context c) {
+        java.util.List<String> problems = problems(c);
+        reply(c, problems.isEmpty() ? "Locum Watch OK" : "Locum Watch: please check the spare phone",
+            statusText(c), false);
     }
 
     static String statusText(Context c) {
         Prefs p = new Prefs(c);
         StringBuilder b = new StringBuilder();
+        for (String problem : problems(c)) b.append("\u26A0 ").append(problem).append('\n');
         b.append("Alarm: ").append(p.isArmed() ? "ON" : "OFF").append('\n');
-        b.append("WhatsApp access: ").append(WaListener.isEnabled(c) ? "OK" : "NOT GRANTED")
-            .append(WaListener.isConnected() ? ", listening" : ", NOT listening").append('\n');
+        b.append("WhatsApp feed: ").append(!WaListener.isEnabled(c) ? "no access"
+            : WaListener.isReceiving() ? "live (checked every 5 min)" : "NOT live").append('\n');
         long any = p.lastAnyNotifAt();
         b.append("Last WhatsApp notification (any chat): ")
             .append(any == 0 ? "none yet" : when(any) + " (" + ago(any) + ", " + p.lastAnyNotif() + ")").append('\n');
-        b.append("Battery: ").append(battery(c)).append('\n');
         long wa = p.lastWhatsAppAt();
         b.append("Last group message seen: ").append(wa == 0 ? "none yet" : when(wa) + " (" + ago(wa) + ")").append('\n');
         if (!p.lastWhatsApp().isEmpty()) b.append("  ").append(p.lastWhatsApp()).append('\n');
+        long k = p.lastKarenAt();
+        b.append("Last message from Karen: ").append(k == 0 ? "none yet" : when(k) + " (" + ago(k) + ")").append('\n');
         long al = p.lastAlarmAt();
         b.append("Last alarm: ").append(al == 0 ? "none yet" : when(al)).append('\n');
+        b.append("Battery: ").append(battery(c)).append('\n');
         b.append("Pushover: ").append(p.hasPushover() ? "on" : "not set up").append('\n');
         b.append("Version: ").append(version(c));
         return b.toString();
+    }
+
+    private static boolean isCharging(Context c) {
+        Intent i = c.registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        return i == null || i.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
     }
 
     private static String battery(Context c) {

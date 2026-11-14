@@ -26,8 +26,12 @@ public final class Prefs implements LocumEngine.State {
     public void setArmed(boolean on) { sp.edit().putBoolean("armed", on).apply(); }
 
     // ---------- engine state ----------
-    @Override public long lastAlarmAt() { return sp.getLong("lastAlarm", 0); }
-    @Override public void setLastAlarmAt(long t) { sp.edit().putLong("lastAlarm", t).apply(); }
+    @Override public long lastAlarmAt(String g) { return sp.getLong("lastAlarm_" + g, 0); }
+    @Override public void setLastAlarmAt(String g, long t) {
+        sp.edit().putLong("lastAlarm_" + g, t).putLong("lastAlarm", t).apply();
+    }
+    /** Most recent alarm in any group (for the status report). */
+    public long lastAlarmAt() { return sp.getLong("lastAlarm", 0); }
     @Override public long lastSeenMessageTime(String g) { return sp.getLong("seen_" + g, 0); }
     @Override public void setLastSeenMessageTime(String g, long t) { sp.edit().putLong("seen_" + g, t).apply(); }
     @Override public long cooldownMillis() { return cooldownMinutes() * 60_000L; }
@@ -77,13 +81,28 @@ public final class Prefs implements LocumEngine.State {
     public void listen(SharedPreferences.OnSharedPreferenceChangeListener l) { sp.registerOnSharedPreferenceChangeListener(l); }
     public void unlisten(SharedPreferences.OnSharedPreferenceChangeListener l) { sp.unregisterOnSharedPreferenceChangeListener(l); }
 
-    public synchronized void addLog(String line) {
-        String stamp = new SimpleDateFormat("dd/MM HH:mm", Locale.UK).format(new Date());
-        String all = stamp + "  " + line + "\n" + sp.getString("log", "");
-        String[] lines = all.split("\n");
-        StringBuilder b = new StringBuilder();
-        for (int i = 0; i < Math.min(lines.length, MAX_LOG_LINES); i++) b.append(lines[i]).append('\n');
-        sp.edit().putString("log", b.toString()).apply();
+    public void addLog(String line) { push("log", "dd/MM HH:mm", line, MAX_LOG_LINES); }
+
+    /** Raw record of every watched-group notification, for troubleshooting. */
+    public void addDiag(String line) { push("diag", "dd/MM HH:mm:ss", line, 40); }
+    public String diag() { return sp.getString("diag", ""); }
+
+    private void push(String key, String fmt, String line, int max) {
+        synchronized (Prefs.class) { // several Prefs objects and threads share one file
+            String stamp = new SimpleDateFormat(fmt, Locale.UK).format(new Date());
+            String[] lines = (stamp + "  " + line + "\n" + sp.getString(key, "")).split("\n");
+            StringBuilder b = new StringBuilder();
+            for (int i = 0; i < Math.min(lines.length, max); i++) b.append(lines[i]).append('\n');
+            sp.edit().putString(key, b.toString()).commit();
+        }
     }
+
+    public long lastKarenAt() { return sp.getLong("lastKarenAt", 0); }
+    public void setLastKarenAt(long t) { sp.edit().putLong("lastKarenAt", t).apply(); }
+
+    /** Phone clock minus ntfy server clock, in seconds (0 = unknown or exact). */
+    public long clockSkewSeconds() { return sp.getLong("clockSkew", 0); }
+    public void setClockSkewSeconds(long s) { if (s != clockSkewSeconds()) sp.edit().putLong("clockSkew", s).apply(); }
+
     public String log() { return sp.getString("log", ""); }
 }

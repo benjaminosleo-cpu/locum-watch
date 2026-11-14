@@ -24,6 +24,7 @@ public class MainActivity extends Activity {
     private Prefs prefs;
     private TextView status;
     private TextView log;
+    private TextView diag;
     private Switch armed;
     private Button accessBtn;
     private Button batteryBtn;
@@ -59,7 +60,7 @@ public class MainActivity extends Activity {
             v -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
         batteryBtn = button(col, "Step 2: stop battery saving for this app", v -> askBattery());
         button(col, "Reconnect to WhatsApp notifications", v -> {
-            WaListener.ensureBound(this, true);
+            WaListener.forceRebind(this, "button");
             Toast.makeText(this, "Reconnecting\u2026", Toast.LENGTH_SHORT).show();
             status.postDelayed(this::refresh, 2000);
         });
@@ -81,6 +82,7 @@ public class MainActivity extends Activity {
             prefs.setGroupsRaw(groups.getText().toString());
             if (!topic.getText().toString().trim().equals(prefs.topic())) {
                 prefs.setTopic(topic.getText().toString());
+                WatchService.restartStream();
             }
             prefs.setCooldownMinutes(parse(cooldown, 60));
             prefs.setAlarmMinutes(parse(minutes, 10));
@@ -93,6 +95,17 @@ public class MainActivity extends Activity {
         log = text(12);
         log.setTypeface(Typeface.MONOSPACE);
         col.addView(log);
+
+        col.addView(heading("Diagnostics: what WhatsApp delivered"));
+        diag = text(11);
+        diag.setTypeface(Typeface.MONOSPACE);
+        col.addView(diag);
+
+        if (android.os.Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 1);
+        }
 
         ScrollView sv = new ScrollView(this);
         sv.addView(col);
@@ -107,7 +120,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        WaListener.rebindIfNeeded(this);
+        if (!WaListener.isConnected()) WaListener.requestRebindNow(this);
         refresh();
         prefs.listen(live);
     }
@@ -122,6 +135,8 @@ public class MainActivity extends Activity {
         status.setText(Commands.statusText(this));
         String l = prefs.log();
         log.setText(l.isEmpty() ? "Nothing yet. Messages in the watched groups will appear here." : l);
+        String d = prefs.diag();
+        diag.setText(d.isEmpty() ? "Nothing yet." : d);
         armed.setChecked(prefs.isArmed());
     }
 
@@ -134,8 +149,7 @@ public class MainActivity extends Activity {
         boolean battery = getSystemService(PowerManager.class).isIgnoringBatteryOptimizations(getPackageName());
         batteryBtn.setText(battery ? "Battery saving: off for this app" : "Step 2: stop battery saving for this app");
         batteryBtn.setTextColor(battery ? Color.rgb(20, 120, 40) : Color.rgb(180, 20, 20));
-        String l = prefs.log();
-        log.setText(l.isEmpty() ? "Nothing yet. Messages in the watched groups will appear here." : l);
+        refreshStatusAndLog();
     }
 
     private void askBattery() {

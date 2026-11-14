@@ -48,4 +48,24 @@ public class LocumFilterHistoryTest {
         };
         for (String[] l : loud) assertEquals(l[1], true, LocumFilter.isAlarm(l[0], l[1]));
     }
+
+    /** If Karen's contact is renamed or unsaved ("~Karen"), her messages still get her rule. */
+    @Test
+    public void karenIsRecognisedHoweverSheIsSaved() {
+        String futureShift = "Nights 26th 27th 28th June MRI";
+        assertEquals(true, LocumFilter.isAlarm("Karen (ENT rota)", futureShift));
+        assertEquals(true, LocumFilter.isAlarm("~Karen", futureShift));
+        assertEquals(true, LocumFilter.isAlarm("Karen Rota Coordinator", futureShift));
+        assertEquals(false, LocumFilter.isAlarm("Member 7", futureShift));
+    }
+
+    /** Wordings Ben tried on the night that were judged as designed. */
+    @Test
+    public void colleaguesNeedATimeAndAnAskingWord() {
+        assertEquals(true, LocumFilter.isAlarm("Ben", "Need locum tonight"));
+        assertEquals(false, LocumFilter.isAlarm("Ben", "Locum at MRI please"));
+        assertEquals(false, LocumFilter.isAlarm("Ben", "Long day at MRI tomorrow"));
+        assertEquals(true, LocumFilter.isAlarm("Ben", "Long day needed at MRI tomorrow"));
+        assertEquals(true, LocumFilter.isAlarm("Karen (ENT rota)", "Long day at MRI tomorrow"));
+    }
 }

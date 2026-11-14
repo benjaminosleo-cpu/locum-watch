@@ -3,16 +3,21 @@ package com.benjaminosleo.locumwatch;
 import android.app.Notification;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.util.Log;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 /** Reads WhatsApp notifications and sets off the alarm for locum requests. */
 public class WaListener extends NotificationListenerService {
@@ -21,10 +26,19 @@ public class WaListener extends NotificationListenerService {
     private static volatile WaListener instance;
     private static volatile long intentionalReconnectAt;
 
+    /**
+     * elapsedRealtime of the last time this listener was handed one of our own
+     * notifications. WatchService re-posts its notification as a heartbeat, so a recent
+     * value proves Android is still delivering notifications to us.
+     */
+    static volatile long lastSelfSeenAt;
+
     @Override
     public void onListenerConnected() {
         instance = this;
+        lastSelfSeenAt = SystemClock.elapsedRealtime();
         WatchService.start(this);
+        catchUp();
     }
 
     @Override
@@ -42,19 +56,67 @@ public class WaListener extends NotificationListenerService {
         super.onDestroy();
     }
 
+    private static boolean isWhatsApp(String pkg) {
+        return "com.whatsapp".equals(pkg) || "com.whatsapp.w4b".equals(pkg);
+    }
+
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
         String pkg = sbn.getPackageName();
-        if (!"com.whatsapp".equals(pkg) && !"com.whatsapp.w4b".equals(pkg)) return;
+        if (getPackageName().equals(pkg)) {
+            lastSelfSeenAt = SystemClock.elapsedRealtime();
+            return;
+        }
+        if (!isWhatsApp(pkg)) return;
         try {
-            handle(sbn.getNotification());
+            handle(sbn.getNotification(), false);
         } catch (Throwable t) {
             Log.e(TAG, "handle failed", t);
             new Prefs(this).addLog("ERROR reading notification: " + t);
         }
     }
 
-    private void handle(Notification n) {
+    @Override
+    public void onNotificationRemoved(StatusBarNotification sbn, RankingMap rankingMap, int reason) {
+        if (!isWhatsApp(sbn.getPackageName())) return;
+        try {
+            Notification n = sbn.getNotification();
+            if (n.extras == null || (n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return;
+            Prefs p = new Prefs(this);
+            String group = groupOf(n.extras, p.groups());
+            if (group == null) return;
+            String why;
+            switch (reason) {
+                case REASON_APP_CANCEL:
+                case REASON_APP_CANCEL_ALL: why = "by WhatsApp: read or opened on a device"; break;
+                case REASON_CLICK: why = "tapped on this phone"; break;
+                case REASON_CANCEL:
+                case REASON_CANCEL_ALL: why = "swiped away on this phone"; break;
+                default: why = "reason " + reason;
+            }
+            p.addDiag(group + ": notification removed (" + why + ")");
+        } catch (Throwable ignored) { }
+    }
+
+    /** After (re)connecting, read what is already showing so nothing in the gap is missed. */
+    private void catchUp() {
+        try {
+            StatusBarNotification[] active = getActiveNotifications();
+            if (active == null) return;
+            for (StatusBarNotification sbn : active) {
+                if (isWhatsApp(sbn.getPackageName())) handle(sbn.getNotification(), true);
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "catch-up failed", t);
+        }
+    }
+
+    private static String groupOf(Bundle ex, List<String> groups) {
+        String g = MessageParsing.matchGroup(str(ex.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)), groups);
+        return g != null ? g : MessageParsing.matchGroup(str(ex.getCharSequence(Notification.EXTRA_TITLE)), groups);
+    }
+
+    private void handle(Notification n, boolean catchUp) {
         Bundle ex = n.extras;
         if (ex == null) return;
         // WhatsApp's bundle summary ("4 new messages") repeats what the chat notification holds.
@@ -65,16 +127,17 @@ public class WaListener extends NotificationListenerService {
         String conv = str(ex.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE));
         String title = str(ex.getCharSequence(Notification.EXTRA_TITLE));
         String text = str(ex.getCharSequence(Notification.EXTRA_TEXT));
+        long now = System.currentTimeMillis();
 
-        p.setLastAnyNotif(System.currentTimeMillis(), conv.isEmpty() ? title : conv);
+        if (!catchUp) p.setLastAnyNotif(now, conv.isEmpty() ? title : conv);
 
-        String group = MessageParsing.matchGroup(conv, groups);
-        if (group == null) group = MessageParsing.matchGroup(title, groups);
+        String group = groupOf(ex, groups);
         if (group == null) return;
 
         List<MessageParsing.Msg> msgs = new ArrayList<>();
         Parcelable[] arr = ex.getParcelableArray(Notification.EXTRA_MESSAGES);
-        if (arr != null && arr.length > 0) {
+        boolean styled = arr != null && arr.length > 0;
+        if (styled) {
             // MessagingStyle: one bundle per message, with its own sender and time.
             for (Parcelable pa : arr) {
                 if (!(pa instanceof Bundle)) continue;
@@ -95,22 +158,35 @@ public class WaListener extends NotificationListenerService {
         }
 
         if (msgs.isEmpty()) {
-            p.addLog(group + " | notification with no readable message (title: " + shorten(title, 40)
-                + ", text: " + shorten(text, 60) + ")");
+            if (!MessageParsing.isSummaryText(text)) {
+                p.addDiag(group + ": notification with no readable message (title: " + shorten(title, 40)
+                    + ", text: " + shorten(text, 60) + ")");
+            }
             return;
         }
-        long now = System.currentTimeMillis();
+
+        long seenBefore = p.lastSeenMessageTime(group);
+        int fresh = 0;
+        long newest = 0;
         for (MessageParsing.Msg m : msgs) {
+            if (m.time > newest) newest = m.time;
+            // Catch-up re-reads old notifications: only judge what arrived after the last one we saw.
+            if (catchUp && (m.time == 0 || m.time <= seenBefore)) continue;
             LocumEngine.Outcome o = ENGINE.evaluate(m, now, p);
             if (o == LocumEngine.Outcome.DUPLICATE) continue;
+            fresh++;
+            if (LocumFilter.isKaren(m.sender)) p.setLastKarenAt(now);
             String line = m.group + " | " + (m.sender.isEmpty() ? "(her)" : m.sender) + ": "
-                + shorten(m.text, 120) + " -> " + o.label;
+                + shorten(m.text, 120) + " -> " + o.label + (catchUp ? " (caught up after reconnect)" : "");
             p.addLog(line);
             p.setLastWhatsApp(now, line);
             if (o == LocumEngine.Outcome.ALARM) {
                 AlarmService.start(this, m.sender.isEmpty() ? m.group : m.sender, m.text, false);
             }
         }
+        p.addDiag(group + (catchUp ? ": catch-up, " : ": posted, ") + msgs.size()
+            + (styled ? " message(s)" : " message (title/text only)") + ", " + fresh + " new"
+            + (newest > 0 ? ", newest sent " + new SimpleDateFormat("HH:mm:ss", Locale.UK).format(new Date(newest)) : ""));
     }
 
     /** Make sure the phone itself is not in Do Not Disturb when the alarm rings. */
@@ -133,32 +209,31 @@ public class WaListener extends NotificationListenerService {
 
     static boolean isConnected() { return instance != null; }
 
-    /**
-     * Android 9 sometimes drops a notification listener (after an app restart or update)
-     * and never reconnects it. If access is granted but we are not connected, ask for a
-     * rebind; with force, also toggle the component, which makes the system bind afresh.
-     */
-    /** Gentle: just ask the system to rebind if we are not connected. */
-    static void rebindIfNeeded(Context c) {
-        if (!isEnabled(c) || isConnected()) return;
+    /** True if the heartbeat was seen recently (WatchService pings every 5 minutes). */
+    static boolean isReceiving() {
+        return instance != null && SystemClock.elapsedRealtime() - lastSelfSeenAt < 12 * 60_000L;
+    }
+
+    /** Gentle: ask the system to bind the listener again. */
+    static void requestRebindNow(Context c) {
+        if (!isEnabled(c)) return;
         try { requestRebind(new ComponentName(c, WaListener.class)); } catch (Throwable ignored) { }
     }
 
-    static void ensureBound(Context c, boolean force) {
+    /**
+     * Forceful: Android 9 sometimes drops a notification listener (typically after an app
+     * update) and never reconnects it. Switching the component off and on makes the system
+     * bind it afresh. Notification access itself stays granted.
+     */
+    static void forceRebind(Context c, String why) {
         if (!isEnabled(c)) return;
-        if (isConnected() && !force) return;
+        intentionalReconnectAt = System.currentTimeMillis();
         ComponentName cn = new ComponentName(c, WaListener.class);
+        PackageManager pm = c.getPackageManager();
+        pm.setComponentEnabledSetting(cn, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+        pm.setComponentEnabledSetting(cn, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP);
         try { requestRebind(cn); } catch (Throwable ignored) { }
-        if (force || !isConnected()) {
-            intentionalReconnectAt = System.currentTimeMillis();
-            android.content.pm.PackageManager pm = c.getPackageManager();
-            pm.setComponentEnabledSetting(cn, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                android.content.pm.PackageManager.DONT_KILL_APP);
-            pm.setComponentEnabledSetting(cn, android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                android.content.pm.PackageManager.DONT_KILL_APP);
-            try { requestRebind(cn); } catch (Throwable ignored) { }
-            new Prefs(c).addLog("Reconnected to WhatsApp notifications" + (force ? "" : " (was disconnected)"));
-        }
+        new Prefs(c).addLog("Reconnected to WhatsApp notifications (" + why + ")");
     }
 
     private static String str(CharSequence cs) { return cs == null ? "" : cs.toString(); }
