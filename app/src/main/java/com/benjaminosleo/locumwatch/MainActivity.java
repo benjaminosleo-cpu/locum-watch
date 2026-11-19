@@ -67,8 +67,9 @@ public class MainActivity extends Activity {
         button(col, "Test the alarm (30 seconds)",
             v -> AlarmService.start(this, "TEST", "Test alarm from the app. Tap STOP ALARM to silence it.", true));
         button(col, "Send status to her iPhone", v -> {
-            Commands.reply(this, "Locum alarm status", Commands.statusText(this), false);
-            Toast.makeText(this, "Sent", Toast.LENGTH_SHORT).show();
+            WatchService.probeThen(this, () ->
+                Commands.reply(this, "Locum alarm status", Commands.statusText(this), false));
+            Toast.makeText(this, "Sending\u2026", Toast.LENGTH_SHORT).show();
         });
 
         col.addView(heading("Settings"));

@@ -37,6 +37,7 @@ public class WaListener extends NotificationListenerService {
     public void onListenerConnected() {
         instance = this;
         lastSelfSeenAt = SystemClock.elapsedRealtime();
+        WatchService.markFeedOk();
         WatchService.start(this);
         catchUp();
     }
@@ -209,9 +210,12 @@ public class WaListener extends NotificationListenerService {
 
     static boolean isConnected() { return instance != null; }
 
-    /** True if the heartbeat was seen recently (WatchService pings every 5 minutes). */
+    /**
+     * True unless a feed check actually ran and failed. A check that could not run because
+     * the phone was asleep says nothing either way, so it is not counted as a failure.
+     */
     static boolean isReceiving() {
-        return instance != null && SystemClock.elapsedRealtime() - lastSelfSeenAt < 12 * 60_000L;
+        return instance != null && !WatchService.feedFailing();
     }
 
     /** Gentle: ask the system to bind the listener again. */

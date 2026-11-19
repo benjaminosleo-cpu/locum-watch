@@ -13,7 +13,8 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Ben's own PC (self-hosted runner in WSL Ubuntu): no GitHub build minutes used.
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
 
@@ -21,6 +22,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+
+      # GitHub's own machines come with the Android SDK; make sure the PC has it too.
+      - uses: android-actions/setup-android@v3
 
       - uses: gradle/actions/setup-gradle@v4
         with:

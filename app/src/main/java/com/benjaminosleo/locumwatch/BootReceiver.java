@@ -24,8 +24,9 @@ public class BootReceiver extends BroadcastReceiver {
                 break;
             case Scheduler.ACTION_CHECKIN:
                 WatchService.start(c);
-                Commands.checkIn(c);
                 Scheduler.scheduleCheckIn(c);
+                final Context app = c.getApplicationContext();
+                WatchService.probeThen(app, () -> Commands.checkIn(app));
                 break;
             default:
         }

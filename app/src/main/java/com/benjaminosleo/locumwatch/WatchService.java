@@ -36,6 +36,46 @@ public class WatchService extends Service {
     private static final long BEAT_MS = 5 * 60_000L;
 
     private static volatile WatchService instance;
+
+    // Result of the last feed check that actually RAN. While the phone is asleep (unplugged
+    // and idle) checks don't run at all; that must not be reported as a failure.
+    private static volatile boolean feedFailing;
+    private static volatile long lastCheckOkAt; // wall clock, 0 = never
+
+    static boolean feedFailing() { return feedFailing; }
+    static long lastCheckOkAt() { return lastCheckOkAt; }
+    static void markFeedOk() { feedFailing = false; lastCheckOkAt = System.currentTimeMillis(); }
+
+    /**
+     * Run a feed check right now, then run {@code after} (on the main thread) once the
+     * result is known, so status reports and the daily check-in are based on a fresh check.
+     */
+    static void probeThen(Context c, Runnable after) { probeThen(c.getApplicationContext(), after, true); }
+
+    private static void probeThen(Context c, Runnable after, boolean mayRetry) {
+        PowerManager.WakeLock wl = c.getSystemService(PowerManager.class)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LocumWatch:probe");
+        wl.acquire(30_000); // keeps the phone awake for the check; released by timeout
+        WatchService s = instance;
+        Handler main = new Handler(Looper.getMainLooper());
+        if (s == null) {
+            // The app has only just been started (e.g. by the check-in alarm): give the
+            // service and the listener a few seconds to come up, then check once.
+            start(c);
+            if (mayRetry) main.postDelayed(() -> probeThen(c, after, false), 8_000);
+            else main.post(after);
+            return;
+        }
+        main.post(() -> {
+            if (!WaListener.isConnected()) WaListener.requestRebindNow(c);
+            long sent = SystemClock.elapsedRealtime();
+            s.getSystemService(NotificationManager.class).notify(NOTIF_ID, s.buildNotification());
+            main.postDelayed(() -> {
+                s.checkBeat(sent);
+                after.run();
+            }, 6_000);
+        });
+    }
     private volatile boolean running;
     private Thread worker;
     private volatile HttpURLConnection current;
@@ -96,10 +136,16 @@ public class WatchService extends Service {
     };
 
     private void checkBeat(long sent) {
-        if (!WaListener.isEnabled(this) || WaListener.lastSelfSeenAt >= sent) {
+        if (!WaListener.isEnabled(this)) {
             missedBeats = 0;
             return;
         }
+        if (WaListener.lastSelfSeenAt >= sent) {
+            missedBeats = 0;
+            markFeedOk();
+            return;
+        }
+        feedFailing = true;
         missedBeats++;
         if (missedBeats == 1) {
             WaListener.requestRebindNow(this);

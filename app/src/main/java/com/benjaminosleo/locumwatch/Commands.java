@@ -33,7 +33,8 @@ final class Commands {
                 reply(c, "Locum alarm is OFF", "You'll still get normal WhatsApp notifications.", false);
                 break;
             case "status":
-                reply(c, "Locum alarm status", statusText(c), false);
+                // Check the feed right now, so the report is not based on an old check.
+                WatchService.probeThen(c, () -> reply(c, "Locum alarm status", statusText(c), false));
                 break;
             case "test":
                 p.addLog("Test alarm from iPhone");
@@ -71,7 +72,7 @@ final class Commands {
         android.os.PowerManager pm = c.getSystemService(android.os.PowerManager.class);
         if (pm.isPowerSaveMode()) out.add("Battery Saver is ON: turn it off, it delays WhatsApp");
         if (!pm.isIgnoringBatteryOptimizations(c.getPackageName())) out.add("Battery saving is not switched off for this app");
-        if (!isCharging(c)) out.add("The phone is not charging");
+        if (!isCharging(c)) out.add(UNPLUGGED);
         long skew = Math.abs(p.clockSkewSeconds());
         if (skew > 120) out.add("The phone's clock is off by " + (skew / 60) + " min: turn on automatic date and time");
         long any = p.lastAnyNotifAt();
@@ -82,10 +83,15 @@ final class Commands {
         return out;
     }
 
+    static final String UNPLUGGED =
+        "Unplugged: the phone may go to sleep and delay alarms. Plug it back in.";
+
     static void checkIn(Context c) {
         java.util.List<String> problems = problems(c);
-        reply(c, problems.isEmpty() ? "Locum Watch OK" : "Locum Watch: please check the spare phone",
-            statusText(c), false);
+        String title = problems.isEmpty() ? "Locum Watch OK"
+            : problems.size() == 1 && problems.get(0).equals(UNPLUGGED) ? "Locum Watch: the spare phone is unplugged"
+            : "Locum Watch: please check the spare phone";
+        reply(c, title, statusText(c), false);
     }
 
     static String statusText(Context c) {
@@ -94,7 +100,9 @@ final class Commands {
         for (String problem : problems(c)) b.append("\u26A0 ").append(problem).append('\n');
         b.append("Alarm: ").append(p.isArmed() ? "ON" : "OFF").append('\n');
         b.append("WhatsApp feed: ").append(!WaListener.isEnabled(c) ? "no access"
-            : WaListener.isReceiving() ? "live (checked every 5 min)" : "NOT live").append('\n');
+            : !WaListener.isReceiving() ? "NOT live"
+            : WatchService.lastCheckOkAt() == 0 ? "live"
+            : "live (checked " + ago(WatchService.lastCheckOkAt()) + ")").append('\n');
         long any = p.lastAnyNotifAt();
         b.append("Last WhatsApp notification (any chat): ")
             .append(any == 0 ? "none yet" : when(any) + " (" + ago(any) + ", " + p.lastAnyNotif() + ")").append('\n');
