@@ -25,6 +25,9 @@ jobs:
 
       # GitHub's own machines come with the Android SDK; make sure the PC has it too.
       - uses: android-actions/setup-android@v3
+        with:
+          # Only what this app needs (the action's default list includes a retired package).
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
       - uses: gradle/actions/setup-gradle@v4
         with:
