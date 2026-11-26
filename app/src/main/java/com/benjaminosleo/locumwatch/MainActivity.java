@@ -64,6 +64,25 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Reconnecting\u2026", Toast.LENGTH_SHORT).show();
             status.postDelayed(this::refresh, 2000);
         });
+        final TextView volLabel = text(14);
+        volLabel.setPadding(0, dp(12), 0, 0);
+        volLabel.setText("Alarm volume: " + prefs.alarmVolumePercent() + "%");
+        col.addView(volLabel);
+        android.widget.SeekBar vol = new android.widget.SeekBar(this);
+        vol.setMax(9); // 10% steps: 0 = 10% ... 9 = 100%
+        vol.setProgress(prefs.alarmVolumePercent() / 10 - 1);
+        vol.setPadding(dp(16), dp(12), dp(16), dp(12));
+        vol.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(android.widget.SeekBar s, int progress, boolean fromUser) {
+                volLabel.setText("Alarm volume: " + (progress + 1) * 10 + "%");
+            }
+            @Override public void onStartTrackingTouch(android.widget.SeekBar s) { }
+            @Override public void onStopTrackingTouch(android.widget.SeekBar s) {
+                prefs.setAlarmVolumePercent((s.getProgress() + 1) * 10);
+                prefs.addLog("Alarm volume set to " + prefs.alarmVolumePercent() + "%");
+            }
+        });
+        col.addView(vol);
         button(col, "Test the alarm (30 seconds)",
             v -> AlarmService.start(this, "TEST", "Test alarm from the app. Tap STOP ALARM to silence it.", true));
         button(col, "Send status to her iPhone", v -> {

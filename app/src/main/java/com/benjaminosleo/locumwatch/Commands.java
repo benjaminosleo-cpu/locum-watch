@@ -98,7 +98,8 @@ final class Commands {
         Prefs p = new Prefs(c);
         StringBuilder b = new StringBuilder();
         for (String problem : problems(c)) b.append("\u26A0 ").append(problem).append('\n');
-        b.append("Alarm: ").append(p.isArmed() ? "ON" : "OFF").append('\n');
+        b.append("Alarm: ").append(p.isArmed() ? "ON" : "OFF")
+            .append(", volume ").append(p.alarmVolumePercent()).append("%\n");
         b.append("WhatsApp feed: ").append(!WaListener.isEnabled(c) ? "no access"
             : !WaListener.isReceiving() ? "NOT live"
             : WatchService.lastCheckOkAt() == 0 ? "live"

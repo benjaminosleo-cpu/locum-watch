@@ -135,7 +135,11 @@ public class AlarmService extends Service {
 
         AudioManager am = getSystemService(AudioManager.class);
         savedVolume = am.getStreamVolume(AudioManager.STREAM_ALARM);
-        am.setStreamVolume(AudioManager.STREAM_ALARM, am.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0);
+        // The app sets its own loudness (slider in the app), so the alarm can never be
+        // silenced by the phone's alarm volume having been turned down.
+        int max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM);
+        int level = Math.max(1, Math.round(max * new Prefs(this).alarmVolumePercent() / 100f));
+        am.setStreamVolume(AudioManager.STREAM_ALARM, level, 0);
 
         AudioAttributes attrs = new AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ALARM)

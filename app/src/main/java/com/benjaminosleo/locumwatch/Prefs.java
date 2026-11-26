@@ -39,6 +39,10 @@ public final class Prefs implements LocumEngine.State {
     // ---------- settings ----------
     public int cooldownMinutes() { return sp.getInt("cooldownMin", 60); }
     public void setCooldownMinutes(int m) { sp.edit().putInt("cooldownMin", Math.max(0, m)).apply(); }
+    /** Alarm loudness as a percentage of the phone's maximum alarm volume (10-100). */
+    public int alarmVolumePercent() { return sp.getInt("alarmVol", 100); }
+    public void setAlarmVolumePercent(int v) { sp.edit().putInt("alarmVol", Math.max(10, Math.min(100, v))).apply(); }
+
     public int alarmMinutes() { return sp.getInt("alarmMin", 10); }
     public void setAlarmMinutes(int m) { sp.edit().putInt("alarmMin", Math.max(1, Math.min(60, m))).apply(); }
 
