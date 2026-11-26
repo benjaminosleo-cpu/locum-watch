@@ -39,6 +39,10 @@ public class AlarmService extends Service {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private int savedVolume = -1;
     private boolean testAlarm;
+    private static volatile boolean ringing;
+
+    /** True while an alarm (real or test) is sounding. */
+    static boolean isRinging() { return ringing; }
     private android.media.ToneGenerator beeper;
     private final Runnable timeout = () -> finishAlarm(true);
     private final Runnable beepLoop = new Runnable() {
@@ -81,6 +85,7 @@ public class AlarmService extends Service {
         try { startActivity(show); } catch (Throwable t) { Log.w(TAG, "activity start blocked", t); }
 
         startSound();
+        ringing = true;
         Prefs p = new Prefs(this);
         long ms = test ? TEST_SECONDS * 1000L : p.alarmMinutes() * 60_000L;
         handler.removeCallbacks(timeout);
@@ -212,6 +217,10 @@ public class AlarmService extends Service {
                 "The bedside phone rang for " + min + " minutes and nobody tapped STOP.", false);
         }
         stopSound();
+        if (ringing) {
+            ringing = false;
+            new Prefs(this).setAlarmEndedAt(System.currentTimeMillis());
+        }
         sendBroadcast(new Intent(ACTION_FINISHED).setPackage(getPackageName()));
         stopForeground(true);
         stopSelf();
@@ -220,6 +229,7 @@ public class AlarmService extends Service {
     @Override
     public void onDestroy() {
         stopSound();
+        ringing = false;
         super.onDestroy();
     }
 

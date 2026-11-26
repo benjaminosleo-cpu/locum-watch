@@ -101,6 +101,10 @@ public final class Prefs implements LocumEngine.State {
         }
     }
 
+    /** When the last alarm (real or test) stopped ringing; Mochi stays lively for a while after. */
+    public long alarmEndedAt() { return sp.getLong("alarmEndedAt", 0); }
+    public void setAlarmEndedAt(long t) { sp.edit().putLong("alarmEndedAt", t).apply(); }
+
     public long lastKarenAt() { return sp.getLong("lastKarenAt", 0); }
     public void setLastKarenAt(long t) { sp.edit().putLong("lastKarenAt", t).apply(); }
 
