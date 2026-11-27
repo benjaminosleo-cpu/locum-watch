@@ -22,8 +22,11 @@ public final class GardenScene {
     private static final float L = Hero.WIN_L - 4f, T = Hero.WIN_T - 6f, R = Hero.WIN_R + 4f, B = Hero.WIN_B + 4f;
     private static final float HZ = Hero.HORIZON;
 
+    /** The stump Mochi leans on to nibble: centre and top, hero units. */
+    static final float STUMP_X = 263f, STUMP_TOP = 259f;
+
     private Palette pal = Palette.at(Palette.DAY);
-    private float sprigPull;
+    private float sprigPull, perchK, perchX, perchY;
 
     // ---- live layer: shapes built once ----
     private static final int SPRAYS = 4, PETALS = 11, TUFTS = 6, FLOWERS = 4, FLIES = 9, STARS = 5;
@@ -34,8 +37,8 @@ public final class GardenScene {
     private final Shape[] tuft = new Shape[TUFTS], tuftLight = new Shape[TUFTS];
     private static final float[] TUFT_X = {58f, 104f, 150f, 214f, 262f, 304f};
     private static final float[] TUFT_Y = {372f, 392f, 398f, 398f, 390f, 368f};
-    private static final float[] FLOWER_X = {84f, 128f, 240f, 286f};
-    private static final float[] FLOWER_Y = {394f, 400f, 400f, 392f};
+    private static final float[] FLOWER_X = {84f, 128f, 240f, 268f};
+    private static final float[] FLOWER_Y = {394f, 400f, 400f, 396f};
     private static final float[] FLOWER_H = {44f, 26f, 30f, 46f};
     private final Shape flowerHead = new Shape(), bellHead = new Shape(), petal = new Shape(), wing = new Shape();
     private final Shape sprigTwig = new Shape(), sprigLeaves = new Shape(), sprigBloom = new Shape(), scratch = new Shape();
@@ -71,6 +74,12 @@ public final class GardenScene {
     /** 0..1: bends the low nibble sprig down towards Mochi's mouth (from {@link MochiDirector#sprigPull()}). */
     public void setSprigPull(float pull) { sprigPull = Art.clamp01(pull); }
 
+    /**
+     * Sends the little bird to perch on Mochi: {@code k} 0 keeps it on its fence post, 1 has it
+     * settled at (x, y), in between it is on the wing. From {@link MochiDirector#birdPerch()}.
+     */
+    public void setBirdPerch(float k, float x, float y) { perchK = Art.clamp01(k); perchX = x; perchY = y; }
+
     // =====================================================================================
     // STATIC background
     // =====================================================================================
@@ -88,6 +97,7 @@ public final class GardenScene {
         fenceAndPath(g);
         treeShade(g);
         basin(g);
+        stump(g);
         tree(g);
         blossomCanopy(g);
         groundDetails(g);
@@ -97,7 +107,7 @@ public final class GardenScene {
     }
 
     private void sky(Painter g) {
-        g.p.fillRect(L, T, R, HZ + 14f, Ink.linear(0, T, 0, HZ + 10f,
+        g.p.fillRect(L, T, R, HZ + 14f, Art.linear(0, T, 0, HZ + 10f,
             new int[]{pal.skyTop, pal.skyMid, pal.skyLow}, new float[]{0f, 0.62f, 1f}));
         // stars
         if (pal.night > 0.05f) {
@@ -114,7 +124,7 @@ public final class GardenScene {
         }
         // moon: a fat crescent with a halo
         if (pal.moonVis > 0.02f) {
-            float mx = 246f, my = 108f, a = pal.moonVis;
+            float mx = 226f, my = 112f, a = pal.moonVis;
             g.glow(mx, my, 64f, 0xFFBFD4FF, 0.42f * a);
             g.glow(mx, my, 26f, 0xFFFFFFFF, 0.5f * a);
             Shape m = new Shape();
@@ -186,7 +196,7 @@ public final class GardenScene {
     }
 
     private void clearing(Painter g) {
-        g.p.fillRect(L, HZ + 36f, R, B, Ink.linear(0, HZ + 36f, 0, B,
+        g.p.fillRect(L, HZ + 36f, R, B, Art.linear(0, HZ + 36f, 0, B,
             new int[]{g.c(G_FAR), g.c(G_MID), g.c(G_NEAR)}, new float[]{0f, 0.4f, 1f}));
         // broad washes of lighter and deeper green so the lawn is not flat
         g.rng.seed(41);
@@ -270,7 +280,7 @@ public final class GardenScene {
     private void treeShade(Painter g) {
         // cool shade under the cherry tree, broken by coins of sunlight
         float day = 1f - pal.night;
-        g.glowOval(86, 312, 96f, 34f, g.c(0xFF2E6A3C), 0.5f);
+        g.glowOval(86, 304, 96f, 34f, g.c(0xFF2E6A3C), 0.5f);
         g.glowOval(150, 268, 70f, 16f, g.c(0xFF2E6A3C), 0.3f);
         g.rng.seed(71);
         for (int i = 0; i < 46; i++) {
@@ -290,7 +300,7 @@ public final class GardenScene {
         g.oval(x, y, 22f, 6.4f, STONE);
         g.oval(x, y - 0.6f, 22f, 6f, 0xFFD0D0C6, 0.8f);
         g.oval(x, y, 18.6f, 4.6f, STONE_DARK);
-        g.p.fillOval(x, y + 0.5f, 18f, 4.1f, Ink.linear(0, y - 4, 0, y + 5, new int[]{Ink.mix(pal.skyMid, g.c(WATER), 0.5f), Ink.mix(pal.skyTop, g.c(0xFF4C88B0), 0.5f)}, new float[]{0f, 1f}));
+        g.p.fillOval(x, y + 0.5f, 18f, 4.1f, Art.linear(0, y - 4, 0, y + 5, new int[]{Ink.mix(pal.skyMid, g.c(WATER), 0.5f), Ink.mix(pal.skyTop, g.c(0xFF4C88B0), 0.5f)}, new float[]{0f, 1f}));
         g.oval(x - 6f, y - 0.4f, 6f, 1f, 0xFFFFFFFF, 0.55f);
         g.oval(x + 9f, y + 1.6f, 3.2f, 1.3f, F_LIGHT);
         g.petal(x + 2f, y + 1.4f, 3.4f, 2.4f, 20f, B_LIGHT, 1f);
@@ -299,14 +309,40 @@ public final class GardenScene {
         g.oval(x - 19f, y + 3f, 3f, 2.2f, MOSS, 0.8f);
     }
 
+    /** An old mossy stump by the shrub: Mochi props both front paws on it to reach the nibble sprig. */
+    private void stump(Painter g) {
+        float x = STUMP_X, top = STUMP_TOP, base = 305f;
+        g.oval(x + 3f, base + 1f, 19f, 4.4f, 0xFF2E6A3C, 0.4f);
+        g.blob(BARK_DARK, 1f, x - 15, base + 1, x - 12, base - 14, x - 11, top + 3, x, top + 5, x + 11, top + 3, x + 12, base - 14, x + 16, base + 1, x + 6, base + 3, x - 5, base + 3);
+        g.blob(BARK, 1f, x - 11, base, x - 9, base - 14, x - 9, top + 4, x + 3, top + 5, x + 5, base - 14, x + 7, base + 1);
+        g.blob(BARK_LIGHT, 0.55f, x - 8, base - 3, x - 7, base - 16, x - 7, top + 5, x - 3, top + 5, x - 2, base - 16, x - 3, base - 2);
+        g.rng.seed(77);
+        for (int i = 0; i < 7; i++) {
+            float lx = x - 9f + i * 3.2f + g.rng.s();
+            g.curve(BARK_DARK, 0.8f, 0.5f, lx, top + 7f + g.rng.f() * 6f, lx + g.rng.s() * 1.5f, top + 22f, lx + g.rng.s() * 1.5f, base - 4f - g.rng.f() * 6f);
+        }
+        // sawn top with rings
+        g.oval(x, top + 3f, 11.6f, 4.2f, BARK_DARK);
+        g.oval(x, top + 2.4f, 11f, 3.8f, 0xFFD8B88C);
+        g.stroke(new Shape().oval(x - 0.6f, top + 2.5f, 7f, 2.3f), 0xFFB08C60, 0.7f, 0.8f);
+        g.stroke(new Shape().oval(x - 1f, top + 2.6f, 3.4f, 1.1f), 0xFFB08C60, 0.7f, 0.8f);
+        // moss, a bracket fungus and a hopeful new shoot
+        g.oval(x - 6f, top + 4.6f, 6f, 2.6f, MOSS, 0.95f); g.oval(x + 9f, base - 2f, 8f, 3.4f, MOSS, 0.9f); g.oval(x - 11f, base - 1f, 6f, 3f, 0xFF96BC5C, 0.9f);
+        g.oval(x + 11f, top + 18f, 4.6f, 1.8f, 0xFFF0D8A8); g.oval(x + 11.6f, top + 23f, 3.6f, 1.5f, 0xFFE8C890);
+        g.curve(0xFF5C9C48, 1f, 1f, x + 7f, top + 3f, x + 10f, top - 4f, x + 9f, top - 9f);
+        g.leaf(x + 9f, top - 9f, 6f, 3.2f, -60f, F_LIGHT, 1f); g.leaf(x + 9.6f, top - 5f, 5.4f, 3f, 10f, F_SUN, 1f);
+    }
+
     private void tree(Painter g) {
         // roots and trunk
-        g.blob(BARK_DARK, 1f, 40, 322, 52, 300, 57, 250, 55, 180, 50, 110, 46, 30, 88, 30, 86, 110, 87, 180, 88, 250, 94, 298, 110, 320, 90, 316, 74, 322, 58, 316);
-        g.blob(BARK, 1f, 48, 316, 58, 296, 61, 250, 59, 180, 54, 110, 50, 30, 80, 30, 78, 110, 79, 180, 80, 250, 84, 296, 96, 314, 72, 316);
-        g.blob(BARK_LIGHT, 0.55f, 54, 300, 62, 250, 60, 180, 56, 110, 52, 34, 60, 34, 63, 110, 66, 180, 68, 250, 64, 300);
+        // (the tree stands at the back of the clearing: its roots end above the track Mochi runs round,
+        // so Mochi passing on the left is rightly in front of it)
+        g.blob(BARK_DARK, 1f, 40, 300, 52, 280, 57, 240, 55, 180, 50, 110, 46, 30, 88, 30, 86, 110, 87, 180, 88, 240, 94, 278, 110, 298, 90, 294, 74, 300, 58, 294);
+        g.blob(BARK, 1f, 48, 294, 58, 276, 61, 240, 59, 180, 54, 110, 50, 30, 80, 30, 78, 110, 79, 180, 80, 240, 84, 276, 96, 292, 72, 294);
+        g.blob(BARK_LIGHT, 0.55f, 54, 280, 62, 240, 60, 180, 56, 110, 52, 34, 60, 34, 63, 110, 66, 180, 68, 240, 64, 280);
         g.rng.seed(81);
         for (int i = 0; i < 26; i++) {
-            float y = g.rng.r(40f, 300f), x = g.rng.r(56f, 82f), len = g.rng.r(8f, 22f);
+            float y = g.rng.r(40f, 270f), x = g.rng.r(56f, 82f), len = g.rng.r(8f, 22f);
             g.curve(g.rng.chance(0.5f) ? BARK_DARK : BARK_LIGHT, g.rng.r(0.6f, 1.2f), 0.5f, x, y, x + g.rng.s() * 2f, y + len * 0.5f, x + g.rng.s() * 2f, y + len);
         }
         // horizontal cherry-bark bands
@@ -317,8 +353,8 @@ public final class GardenScene {
         g.oval(70, 204, 4.4f, 6f, BARK_DARK, 0.8f);
         g.oval(70.6f, 204.4f, 2.4f, 3.8f, 0xFF36241C, 0.9f);
         // moss creeping up the roots
-        g.oval(52, 312, 10f, 4f, MOSS, 0.9f); g.oval(92, 310, 9f, 3.6f, MOSS, 0.9f); g.oval(60, 300, 4f, 6f, MOSS, 0.7f);
-        g.oval(84, 296, 3.6f, 5f, 0xFF96BC5C, 0.7f);
+        g.oval(52, 291, 10f, 4f, MOSS, 0.9f); g.oval(92, 289, 9f, 3.6f, MOSS, 0.9f); g.oval(60, 280, 4f, 6f, MOSS, 0.7f);
+        g.oval(84, 276, 3.6f, 5f, 0xFF96BC5C, 0.7f);
         // main boughs sweeping over the top of the view
         g.taper(BARK_DARK, 17f, 5f, 76, 150, 96, 108, 140, 84, 200, 72, 262, 70, 336, 84);
         g.taper(BARK, 12f, 3f, 76, 147, 96, 105, 140, 81, 200, 69.5f, 262, 67.5f, 336, 81.5f);
@@ -412,7 +448,7 @@ public final class GardenScene {
             g.petal(x, y, 2f + 2.4f * d, 1.3f + 1.4f * d, g.rng.r(0, 360), g.rng.chance(0.6f) ? B_LIGHT : B_MID, 0.9f);
         }
         // toadstools by the roots
-        mushroom(g, 100, 316, 1.0f); mushroom(g, 110, 321, 0.7f); mushroom(g, 44, 330, 0.8f);
+        mushroom(g, 100, 295, 1.0f); mushroom(g, 111, 299, 0.7f); mushroom(g, 44, 330, 0.8f);
         // a couple of stones
         g.oval(256, 336, 8f, 3.6f, STONE_DARK); g.oval(255, 335, 7f, 3f, STONE); g.oval(253, 333.6f, 3.4f, 1.2f, 0xFFD8D8D0, 0.8f);
         g.oval(268, 339, 4.6f, 2.4f, STONE_DARK); g.oval(267.6f, 338.4f, 3.8f, 1.8f, STONE);
@@ -472,7 +508,7 @@ public final class GardenScene {
             float[] sw = {16f, 24f, 14f, 20f};
             for (int i = 0; i < sx.length; i++) {
                 Shape s = new Shape().moveTo(sx[i], T).lineTo(sx[i] + sw[i], T).lineTo(sx[i] + sw[i] * 2.2f + lean, 330f).lineTo(sx[i] - sw[i] * 0.6f + lean, 330f).close();
-                g.p.fill(s, Ink.linear(0, T, 0, 330f, new int[]{Ink.withAlpha(col, a), Ink.withAlpha(col, a * 0.7f), Ink.withAlpha(col, 0f)}, new float[]{0f, 0.5f, 1f}));
+                g.p.fill(s, Art.linear(0, T, 0, 330f, new int[]{Ink.withAlpha(col, a), Ink.withAlpha(col, a * 0.7f), Ink.withAlpha(col, 0f)}, new float[]{0f, 0.5f, 1f}));
             }
         }
         // warm bloom round a low sun; cool pool of moonlight on the clearing at night
@@ -483,7 +519,7 @@ public final class GardenScene {
         }
         // soft vignette so the middle glows
         int dark = Ink.mix(g.c(0xFF1E4030), 0xFF0A1024, pal.night * 0.5f);
-        g.p.fillRect(L, T, R, B, Ink.radial(180f, 250f, 250f,
+        g.p.fillRect(L, T, R, B, Art.radial(180f, 250f, 250f,
             new int[]{Ink.withAlpha(dark, 0f), Ink.withAlpha(dark, 0f), Ink.withAlpha(dark, 0.42f)}, new float[]{0f, 0.55f, 1f}));
     }
 
@@ -552,6 +588,7 @@ public final class GardenScene {
      * {@code t} is seconds (any ever-growing clock); everything loops smoothly.
      */
     public void drawLiveBack(Pen p, double t) {
+        t = Art.clock(t);
         float day = 1f - pal.night;
         p.save();
         p.clipRect(Hero.WIN_L, Hero.WIN_T, Hero.WIN_R, Hero.WIN_B);
@@ -576,7 +613,7 @@ public final class GardenScene {
                 p.restore();
             }
         }
-        if (day > 0.4f) bird(p, t, day);
+        if (day > 0.4f && perchK <= 0.01f) bird(p, t, day);
         // nibble sprig
         p.save();
         p.translate(Hero.SPRIG_X + 20f, Hero.SPRIG_Y - 14f);
@@ -595,6 +632,14 @@ public final class GardenScene {
         float x = Art.lerp(234f, 248f, Art.smooth(hopK)), y = 222.5f - 6f * Art.hump(Art.frac(hopK)) * (hopK > 0f && hopK < 1f ? 1f : 0f);
         float peck = Art.frac(t / 5.3) < 0.08f ? Art.hump(Art.frac(t / 5.3) / 0.08f) : 0f;
         float dir = Art.frac(t / 13.7) < 0.5f ? 1f : -1f;
+        float flap = 0f;
+        if (perchK > 0.01f) {
+            // flying over to Mochi's back, sitting there, or flying home
+            float k = Art.smooth(perchK), air = Art.hump(perchK);
+            x = Art.lerp(x, perchX, k); y = Art.lerp(y, perchY - 3.2f, k) - 16f * air;
+            flap = air > 0.02f ? Art.sin(t * 38.0) : 0f;
+            if (air > 0.02f) { dir = perchX < x ? -1f : 1f; peck = 0f; }
+        }
         p.save();
         p.alpha(Art.smooth(day, 0.4f, 0.7f));
         p.translate(x, y);
@@ -602,7 +647,9 @@ public final class GardenScene {
         p.rotate(18f * peck + 3f * Art.wave(t, 0.9), 0, 3);
         p.fill(birdBody, iBird);
         p.fillOval(1.6f, 0.8f, 3.6f, 3f, iBirdBelly);
+        p.rotate(-50f * flap, -3f, -1f);
         p.fill(birdWing, iBirdWing);
+        p.rotate(50f * flap, -3f, -1f);
         p.line(6.2f, -2.6f, 8.8f, -1.8f, iBeak, 1.4f);
         p.fillOval(3.8f, -3.4f, 0.8f, 0.8f, iEye);
         p.restore();
@@ -614,9 +661,11 @@ public final class GardenScene {
      * blossom sprays that overhang the top of the window.
      */
     public void drawLiveFront(Pen p, double t) {
+        t = Art.clock(t);
         float day = 1f - pal.night;
         p.save();
         p.clipRect(Hero.WIN_L, Hero.WIN_T, Hero.WIN_R, Hero.WIN_B);
+        if (day > 0.4f && perchK > 0.01f) bird(p, t, day);
         // a soft breeze that comes and goes
         float gust = 0.6f + 0.4f * Art.wave(t, 11.0);
         for (int i = 0; i < TUFTS; i++) {
@@ -644,25 +693,30 @@ public final class GardenScene {
             } else {
                 p.translate(0, -h + 2f);
                 p.rotate(sway * 2f + 12f, 0, -3);
-                p.fill(bellHead, i == 1 ? iBell : iButter);
+                p.fill(bellHead, i == 1 ? iButter : iBell); // (the one near the lantern is blue so it is never mistaken for flame)
             }
             p.restore();
         }
-        if (day > 0.45f) {
-            float a = Art.smooth(day, 0.45f, 0.8f);
+        // butterflies by day, fireflies by night; the two never overlap, which keeps dusk frames light
+        if (day > 0.62f) {
+            float a = Art.smooth(day, 0.62f, 0.85f);
             butterfly(p, t, 0, a);
             butterfly(p, t, 1, a);
         }
-        if (pal.night > 0.25f) {
-            float a = Art.smooth(pal.night, 0.25f, 0.7f);
+        if (pal.night > 0.38f) {
+            float a = Art.smooth(pal.night, 0.38f, 0.75f);
             for (int i = 0; i < FLIES; i++) {
                 float x = 180f + 128f * Art.sin(t * (0.11 + i * 0.013) + i * 2.4) + 10f * Art.wave(t + i, 2.9);
                 float y = 290f + 62f * Art.sin(t * (0.09 + i * 0.017) + i * 1.3) + 6f * Art.wave(t + i * 2.0, 2.1) - (i % 3) * 22f;
                 float pulse = 0.5f + 0.5f * Art.wave(t + i * 1.1, 2.6 + (i % 4) * 0.45);
                 pulse = pulse * pulse;
+                // dim to nothing near the favourite spot so no firefly sits on the sleeper's face
+                float hx = (x - Hero.SPOT_X - 26f) / 52f, hy = (y - Hero.SPOT_Y + 24f) / 34f;
+                float clear = Art.smooth(hx * hx + hy * hy, 0.6f, 1.5f);
+                if (clear <= 0.01f) continue;
                 p.save();
                 p.translate(x, y);
-                p.alpha(a * (0.25f + 0.75f * pulse));
+                p.alpha(a * clear * (0.25f + 0.75f * pulse));
                 p.fillOval(0, 0, 9f, 9f, iFly);
                 p.fillOval(0, 0, 1.2f, 1.2f, iFlyCore);
                 p.restore();
@@ -701,7 +755,9 @@ public final class GardenScene {
     private void butterfly(Pen p, double t, int i, float a) {
         double s = t * (i == 0 ? 0.23 : 0.19) + i * 2.0;
         float x = (i == 0 ? 150f : 228f) + 78f * Art.sin(s) + 14f * Art.sin(s * 3.1 + 1f);
-        float y = (i == 0 ? 262f : 330f) + 22f * Art.sin(s * 1.7 + 0.6f) + 8f * Art.sin(s * 4.3);
+        // (the first keeps to the air above the fence so it never settles over Mochi's face)
+        float y = i == 0 ? 215f + 14f * Art.sin(s * 1.7 + 0.6f) + 4f * Art.sin(s * 4.3)
+            : 342f + 15f * Art.sin(s * 1.7 + 0.6f) + 6f * Art.sin(s * 4.3);
         float flap = Math.abs(Art.sin(t * (9.0 + i)));
         float dir = Art.cos(s) >= 0 ? 1f : -1f;
         p.save();

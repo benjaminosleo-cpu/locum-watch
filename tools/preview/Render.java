@@ -17,6 +17,10 @@ public class Render {
         if (want(only, "gif")) Anim.gifs();
         if (want(only, "decor")) Pages.decor();
         if (want(only, "alarm")) Pages.alarmPage();
+        if (want(only, "boards")) Pages.statusBoards();
+        if (want(only, "poke")) Sheets.poke();
+        if (want(only, "film")) Anim.films();
+        if (want(only, "check")) Checks.all();
     }
 
     static boolean want(java.util.Set<String> only, String name) { return only.isEmpty() || only.contains(name); }

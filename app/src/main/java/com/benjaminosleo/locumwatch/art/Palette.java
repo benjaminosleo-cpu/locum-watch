@@ -47,6 +47,8 @@ public final class Palette {
     public final float moonVis;
 
     private final int light, room;
+    /** What warm candle-light does to a colour (a multiplier). */
+    private static final int CANDLE_LIT = 0xFFFFE6B8;
 
     private Palette(float h) {
         h = ((h % 24f) + 24f) % 24f;
@@ -95,6 +97,14 @@ public final class Palette {
 
     /** Mochi's colours: lit like the garden but kept a little truer so the eye finds Mochi first. */
     public int character(int c) { return Ink.mix(mul(c, light), c, 0.22f + 0.12f * night); }
+
+    /** Mochi's colour blended {@code k} (0..1) of the way towards how it looks by candle-light. */
+    public int characterWarm(int c, float k) {
+        return k <= 0f ? character(c) : Ink.mix(character(c), mul(c, CANDLE_LIT), k);
+    }
+
+    /** Interior colour for surfaces that carry dark text (planks): only lightly dimmed at night. */
+    public int roomText(int c) { return Ink.mix(mul(c, room), c, 0.8f); }
 
     /** A cottage-interior colour under this hour's indoor light. */
     public int room(int c) { return mul(c, room); }

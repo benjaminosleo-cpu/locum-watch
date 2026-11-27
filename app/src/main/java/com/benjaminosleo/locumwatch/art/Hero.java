@@ -13,7 +13,11 @@ public final class Hero {
     public static final float WIN_L = 36f, WIN_T = 44f, WIN_R = 324f, WIN_B = 396f;
     /** Top surface of the window sill runs from SILL_TOP down to SILL_FRONT; its front edge ends at SILL_BOTTOM. */
     public static final float SILL_TOP = 396f, SILL_FRONT = 418f, SILL_BOTTOM = 430f;
-    /** Calm strip of wall under the sill where a status line of text can sit. */
+    /** The lantern on the sill plus a little slack: a 48 x 80 touch target for switching the alarm on and off. */
+    public static final float LANTERN_L = 274f, LANTERN_T = 342f, LANTERN_R = 322f, LANTERN_B = 422f;
+    /** Where the status board ({@link Decor#statusBoard}) hangs under the sill: 236 x 64, cords tied to the sill's underside. */
+    public static final float BOARD_L = 62f, BOARD_T = 430f, BOARD_R = 298f, BOARD_B = 494f;
+    /** Strip of wall under the sill (the status board hangs in it). */
     public static final float STATUS_L = 70f, STATUS_T = 446f, STATUS_R = 290f, STATUS_B = 506f;
 
     /** Horizon line of the garden and the middle of the grassy clearing (Mochi's favourite spot). */

@@ -64,21 +64,41 @@ final class Commands {
     }
 
     /** Things that would stop the alarm working. Empty = healthy. */
+    /** Things that would stop the alarm working, as full sentences. Empty = healthy. */
     static java.util.List<String> problems(Context c) {
-        Prefs p = new Prefs(c);
         java.util.List<String> out = new java.util.ArrayList<>();
-        if (!WaListener.isEnabled(c)) out.add("Notification access is NOT granted");
-        else if (!WaListener.isReceiving()) out.add("Notifications are not reaching the app (it will try to reconnect)");
+        for (String[] pair : problemPairs(c)) out.add(pair[1]);
+        return out;
+    }
+
+    /** The same problems as {short label for the status board (25 characters at most), full sentence}. */
+    static java.util.List<String[]> problemPairs(Context c) {
+        Prefs p = new Prefs(c);
+        java.util.List<String[]> out = new java.util.ArrayList<>();
+        if (!WaListener.isEnabled(c)) {
+            out.add(new String[]{"No notification access", "Notification access is NOT granted"});
+        } else if (!WaListener.isReceiving()) {
+            out.add(new String[]{"WhatsApp feed not live",
+                "Notifications are not reaching the app (it will try to reconnect)"});
+        }
         android.os.PowerManager pm = c.getSystemService(android.os.PowerManager.class);
-        if (pm.isPowerSaveMode()) out.add("Battery Saver is ON: turn it off, it delays WhatsApp");
-        if (!pm.isIgnoringBatteryOptimizations(c.getPackageName())) out.add("Battery saving is not switched off for this app");
-        if (!isCharging(c)) out.add(UNPLUGGED);
+        if (pm.isPowerSaveMode()) {
+            out.add(new String[]{"Battery Saver is on", "Battery Saver is ON: turn it off, it delays WhatsApp"});
+        }
+        if (!pm.isIgnoringBatteryOptimizations(c.getPackageName())) {
+            out.add(new String[]{"Battery setting not done", "Battery saving is not switched off for this app"});
+        }
+        if (!isCharging(c)) out.add(new String[]{"Phone is unplugged", UNPLUGGED});
         long skew = Math.abs(p.clockSkewSeconds());
-        if (skew > 120) out.add("The phone's clock is off by " + (skew / 60) + " min: turn on automatic date and time");
+        if (skew > 120) {
+            out.add(new String[]{"Phone clock is wrong",
+                "The phone's clock is off by " + (skew / 60) + " min: turn on automatic date and time"});
+        }
         long any = p.lastAnyNotifAt();
         if (any > 0 && System.currentTimeMillis() - any > STALE_MS) {
-            out.add("No WhatsApp notification from any chat for " + ago(any).replace(" ago", "")
-                + ": check WhatsApp is still linked");
+            out.add(new String[]{"No WhatsApp for days",
+                "No WhatsApp notification from any chat for " + ago(any).replace(" ago", "")
+                    + ": check WhatsApp is still linked"});
         }
         return out;
     }
@@ -88,7 +108,8 @@ final class Commands {
 
     static void checkIn(Context c) {
         java.util.List<String> problems = problems(c);
-        String title = problems.isEmpty() ? "Locum Watch OK"
+        boolean on = new Prefs(c).isArmed();
+        String title = problems.isEmpty() ? (on ? "Locum Watch OK" : "Locum Watch OK (alarm is switched OFF)")
             : problems.size() == 1 && problems.get(0).equals(UNPLUGGED) ? "Locum Watch: the spare phone is unplugged"
             : "Locum Watch: please check the spare phone";
         reply(c, title, statusText(c), false);

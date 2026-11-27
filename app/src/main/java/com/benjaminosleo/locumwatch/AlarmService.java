@@ -30,6 +30,7 @@ public class AlarmService extends Service {
     static final String EXTRA_SENDER = "sender";
     static final String EXTRA_TEXT = "text";
     static final String EXTRA_TEST = "test";
+    static final String EXTRA_PLAIN = "plain";
     private static final int NOTIF_ID = 2;
     private static final int TEST_SECONDS = 30;
 
@@ -76,10 +77,13 @@ public class AlarmService extends Service {
         String text = intent.getStringExtra(EXTRA_TEXT);
         boolean test = intent.getBooleanExtra(EXTRA_TEST, false);
         testAlarm = test;
+        boolean resumed = (flags & START_FLAG_REDELIVERY) != 0;
+        if (resumed) new Prefs(this).addLog("The app was restarted while an alarm was ringing; ringing again");
 
         Intent show = new Intent(this, AlarmActivity.class)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            .putExtra(EXTRA_SENDER, sender).putExtra(EXTRA_TEXT, text).putExtra(EXTRA_TEST, test);
+            .putExtra(EXTRA_SENDER, sender).putExtra(EXTRA_TEXT, text).putExtra(EXTRA_TEST, test)
+            .putExtra(EXTRA_PLAIN, resumed); // after a restart, show the page without artwork to be safe
         startForeground(NOTIF_ID, buildNotification(
             test ? "TEST ALARM" : "LOCUM REQUEST: " + sender, text, show));
         try { startActivity(show); } catch (Throwable t) { Log.w(TAG, "activity start blocked", t); }
@@ -99,7 +103,8 @@ public class AlarmService extends Service {
         } else {
             Commands.reply(this, "LOCUM: " + sender, text, true);
         }
-        return START_NOT_STICKY;
+        // If Android kills and restarts the app while this is ringing, ring again.
+        return START_REDELIVER_INTENT;
     }
 
     private Notification buildNotification(String title, String text, Intent show) {

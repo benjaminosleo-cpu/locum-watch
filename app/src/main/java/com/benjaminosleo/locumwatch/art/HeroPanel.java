@@ -5,6 +5,9 @@ package com.benjaminosleo.locumwatch.art;
  * The panel is {@link Hero#W} x {@link Hero#H} design units; scale the Pen by the screen
  * density before calling.
  *
+ * Threading: one instance per thread; never share an instance between threads (shapes and
+ * inks carry backend caches and scratch state).
+ *
  * Per frame, back to front:
  * <pre>
  *   [bitmap A]  drawSceneStatic(pen)             cached; redraw after setHour()
@@ -44,8 +47,10 @@ public final class HeroPanel {
 
     /** ANIMATED. The moving garden and Mochi, drawn over the scene bitmap. */
     public void drawSceneLive(Pen p, double t, MochiDirector director) {
+        t = Art.clock(t);
         MochiPose pose = director.pose;
         garden.setSprigPull(director.sprigPull());
+        garden.setBirdPerch(director.birdPerch(), director.birdPerchX(), director.birdPerchY());
         garden.drawLiveBack(p, t);
         boolean close = pose.view == MochiPose.FRONT && pose.scale > 1.25f;
         p.save();
@@ -64,6 +69,7 @@ public final class HeroPanel {
 
     /** ANIMATED. Lantern flame and glints, plus Mochi's paws on the sill when up at the window. Draw over the frame bitmap. */
     public void drawFrameLive(Pen p, double t, MochiDirector director) {
+        t = Art.clock(t);
         frame.drawLive(p, t);
         mochi.drawOverSill(p, director.pose);
     }

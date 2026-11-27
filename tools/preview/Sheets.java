@@ -3,15 +3,55 @@ import com.benjaminosleo.locumwatch.art.*;
 
 /** Contact sheets of Mochi's activities. */
 public class Sheets {
-    /** Rows top to bottom: SLEEP, REST, SCRATCH, GRAZE, NIBBLE, PLAY (roll), PLAY (popcorn, balance), EXCITED, AFTERGLOW. */
+    /**
+     * Both tap reactions as key frames inside the hero window. Top row: poked while resting
+     * (looks up, happy blink, heart, wiggle, carries on). Bottom row: poked while asleep
+     * (bleary eye, big yawn, slow blink, back to sleep).
+     */
+    static void poke() throws Exception {
+        float cw = 150, ch = 118, sc = 1.5f;
+        float[][] at = {{0.0f, 0.25f, 0.55f, 0.85f, 1.15f, 1.5f, 1.85f, 2.2f}, {0.0f, 0.3f, 0.8f, 1.2f, 1.7f, 2.05f, 2.5f, 3.3f}};
+        BufferedImage img = new BufferedImage(Math.round(cw * sc) * 8, Math.round(ch * sc) * 2, BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D og = img.createGraphics();
+        for (int row = 0; row < 2; row++) {
+            HeroPanel hero = new HeroPanel();
+            hero.setHour(row == 0 ? Palette.DAY : Palette.NIGHT);
+            BufferedImage bg = new BufferedImage(Math.round(Hero.W * sc), Math.round(Hero.H * sc), BufferedImage.TYPE_INT_ARGB);
+            AwtPen bp = new AwtPen(bg); bp.scale(sc, sc, 0, 0);
+            hero.drawSceneStatic(bp);
+            MochiDirector d = new MochiDirector(9);
+            d.reset(row == 0 ? Palette.DAY : Palette.NIGHT);
+            float hour = row == 0 ? Palette.DAY : Palette.NIGHT;
+            for (int i = 0; i < 90; i++) d.step(1 / 30.0, hour, false, MochiDirector.NEVER);
+            if (!d.hitTest(d.pose.x, d.pose.y - 30)) throw new IllegalStateException("hitTest missed Mochi");
+            d.poke();
+            double t = 0;
+            for (int c = 0; c < 8; c++) {
+                while (t < at[row][c]) { d.step(1 / 30.0, hour, false, MochiDirector.NEVER); t += 1 / 30.0; }
+                BufferedImage f = new BufferedImage(bg.getWidth(), bg.getHeight(), BufferedImage.TYPE_INT_ARGB);
+                AwtPen p = new AwtPen(f);
+                p.graphics().drawImage(bg, 0, 0, null);
+                p.scale(sc, sc, 0, 0);
+                hero.drawSceneLive(p, 3.0 + t, d);
+                int x0 = Math.round((d.pose.x - cw / 2f + 8) * sc), y0 = Math.round((d.pose.y - ch * 0.84f) * sc);
+                og.drawImage(f.getSubimage(x0, y0, Math.round(cw * sc), Math.round(ch * sc)), c * Math.round(cw * sc), row * Math.round(ch * sc), null);
+            }
+        }
+        Render.write(img, "poke.png");
+    }
+
+    /**
+     * Rows top to bottom: SLEEP (settling with a yawn, then asleep), REST, SCRATCH, GRAZE, NIBBLE, PLAY (roll),
+     * PLAY (two popcorn frames, then the blossom falling and balanced), EXCITED, AFTERGLOW.
+     */
     static void mochiSheet() throws Exception {
         int[][] rows = {
             {MochiDirector.SLEEP, 0}, {MochiDirector.REST, 0}, {MochiDirector.SCRATCH, 0}, {MochiDirector.GRAZE, 0},
             {MochiDirector.NIBBLE, 0}, {MochiDirector.PLAY, 0}, {MochiDirector.PLAY, 1}, {MochiDirector.EXCITED, 0},
             {MochiDirector.AFTERGLOW, 0}};
         float[][] phases = {
-            {0.05f, 0.3f, 0.62f, 0.9f}, {0.1f, 0.35f, 0.6f, 0.9f}, {0.1f, 0.2f, 0.45f, 0.48f}, {0.1f, 0.3f, 0.6f, 0.8f},
-            {0.1f, 0.3f, 0.6f, 0.85f}, {0.03f, 0.2f, 0.5f, 0.7f}, {0.2f, 0.42f, -0.5f, -0.75f}, {0.02f, 0.2f, 0.5f, 0.8f},
+            {0.07f, 0.3f, 0.5f, 0.9f}, {0.1f, 0.35f, 0.6f, 0.9f}, {0.1f, 0.14f, 0.42f, 0.47f}, {0.1f, 0.3f, 0.6f, 0.8f},
+            {0.1f, 0.3f, 0.6f, 0.85f}, {0.03f, 0.2f, 0.5f, 0.7f}, {0.2f, 0.42f, -0.14f, -0.5f}, {0.02f, 0.2f, 0.5f, 0.8f},
             {0.1f, 0.35f, 0.5f, 0.8f}};
         float cw = 180, ch = 150, sc = 1.25f;
         BufferedImage img = Render.image(cw * 4, ch * rows.length);

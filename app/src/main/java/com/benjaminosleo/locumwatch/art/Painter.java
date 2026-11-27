@@ -5,7 +5,7 @@ package com.benjaminosleo.locumwatch.art;
  * Every colour passed in is a daylight colour; the painter lights it for the hour.
  */
 final class Painter {
-    static final int GARDEN = 0, ROOM = 1, RAW = 2, ROOM_SOFT = 3;
+    static final int GARDEN = 0, ROOM = 1, RAW = 2, ROOM_SOFT = 3, ROOM_TEXT = 4;
 
     final Pen p;
     final Palette pal;
@@ -22,6 +22,7 @@ final class Painter {
             case GARDEN: return far > 0f ? pal.lit(col, far) : pal.lit(col);
             case ROOM: return pal.room(col);
             case ROOM_SOFT: return pal.roomSoft(col);
+            case ROOM_TEXT: return pal.roomText(col);
             default: return col;
         }
     }
@@ -58,6 +59,7 @@ final class Painter {
 
     /** Soft glow squashed into an ellipse (pools of light on a surface). */
     void glowOval(float x, float y, float rx, float ry, int col, float a) {
+        if (!(rx > 0.01f) || !(ry > 0f)) return;
         p.save();
         p.scale(1f, ry / rx, x, y);
         p.fillOval(x, y, rx, rx, Art.glow(x, y, rx, col, a));

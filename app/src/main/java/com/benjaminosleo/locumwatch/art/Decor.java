@@ -6,13 +6,15 @@ package com.benjaminosleo.locumwatch.art;
  * Text is not drawn; each method's comment says where text can sit and what colour suits it.
  *
  * All methods allocate, so do not call them every frame.
+ *
+ * Threading: one instance per thread; never share an instance between threads.
  */
 public final class Decor {
     static final int PLASTER = 0xFFF4E8CE, PLASTER_SHADE = 0xFFE2D0AC, PLASTER_LIGHT = 0xFFFCF5E2;
     static final int PARCH = 0xFFFAF0D4, PARCH_EDGE = 0xFFE2C990, PARCH_STAIN = 0xFFD2B070;
-    static final int PLANK = 0xFFD6AC78, PLANK_DARK = 0xFFA87C4C, PLANK_LIGHT = 0xFFECC898;
+    static final int PLANK = 0xFFDFBA8A, PLANK_DARK = 0xFFA87C4C, PLANK_LIGHT = 0xFFF0D2A6;
     static final int GOOD = 0xFFA9CC82, GOOD_DARK = 0xFF6E9A52, GOOD_LIGHT = 0xFFCDE6A6;
-    static final int WARN = 0xFFE6846A, WARN_DARK = 0xFFB4523C, WARN_LIGHT = 0xFFF6B09A;
+    static final int WARN = 0xFFF7AE98, WARN_DARK = 0xFFB4442E, WARN_LIGHT = 0xFFFCC6B4;
     static final int INK_BROWN = 0xFF5A3C28;
 
     /** Button looks for {@link #plankButton}. */
@@ -22,6 +24,8 @@ public final class Decor {
     /** Room a shelf needs above and below the y you give it (the top of the board). */
     public static final float SHELF_ABOVE = 80f, SHELF_BELOW = 22f;
     private static final float ITEM_SCALE = 1.36f;
+    /** Notches under the slider track: the volume slider has ten positions. */
+    public static final int SLIDER_STEPS = 10;
     /** The wall texture repeats every this many units vertically. */
     public static final float WALL_TILE = 256f;
     /** The wall pattern repeats exactly every this many units, so one bitmap of this height tiles seamlessly. */
@@ -36,6 +40,7 @@ public final class Decor {
 
     private Painter room(Pen p) { return new Painter(p, pal, Painter.ROOM); }
     private Painter soft(Pen p) { return new Painter(p, pal, Painter.ROOM_SOFT); }
+    private Painter text(Pen p) { return new Painter(p, pal, Painter.ROOM_TEXT); }
 
     // ------------------------------------------------------------------ wall
 
@@ -66,7 +71,8 @@ public final class Decor {
             }
             // freckles and one hairline crack
             for (int i = 0; i < 40; i++) g.oval(g.rng.r(0, w), y0 + g.rng.r(0, WALL_TILE), 0.6f, 0.6f, PLASTER_SHADE, 0.6f);
-            float cx = g.rng.r(40f, w - 60f), cy = y0 + g.rng.r(20f, WALL_TILE - 40f);
+            // (kept to the side margins so it never sits behind text or a hanging board)
+            float cx = g.rng.chance(0.5f) ? g.rng.r(16f, 42f) : w - g.rng.r(30f, 54f), cy = y0 + g.rng.r(20f, WALL_TILE - 40f);
             g.curve(0xFFC4AE88, 0.6f, 0.45f, cx, cy, cx + 5f, cy + 7f, cx + 3f, cy + 13f, cx + 9f, cy + 21f);
         }
         // timber uprights
@@ -80,7 +86,7 @@ public final class Decor {
 
     private void upright(Painter g, float l, float r, float h, float offsetY, boolean leftEdge) {
         Pen p = g.p;
-        p.fillRect(l, 0, r, h, Ink.linear(l, 0, r, 0, new int[]{g.c(WindowFrame.TIMBER), g.c(WindowFrame.TIMBER_LIGHT), g.c(WindowFrame.TIMBER_DARK)}, new float[]{0f, 0.4f, 1f}));
+        p.fillRect(l, 0, r, h, Art.linear(l, 0, r, 0, new int[]{g.c(WindowFrame.TIMBER), g.c(WindowFrame.TIMBER_LIGHT), g.c(WindowFrame.TIMBER_DARK)}, new float[]{0f, 0.4f, 1f}));
         for (int k = 0; k < 4; k++) {
             float x = l + 1.6f + k * 2.1f;
             g.line(x, 0, x, h, k % 2 == 0 ? WindowFrame.TIMBER_DEEP : WindowFrame.TIMBER_DARK, 0.6f, 0.4f);
@@ -92,7 +98,7 @@ public final class Decor {
             g.oval((l + r) / 2f, y, 1.3f, 2f, WindowFrame.TIMBER_DEEP, 0.7f);
         }
         float e = leftEdge ? r : l - 4f;
-        p.fillRect(e, 0, e + 4f, h, Ink.linear(e, 0, e + 4f, 0, new int[]{Ink.withAlpha(g.c(WindowFrame.TIMBER_DEEP), leftEdge ? 0.22f : 0f), Ink.withAlpha(g.c(WindowFrame.TIMBER_DEEP), leftEdge ? 0f : 0.22f)}, new float[]{0f, 1f}));
+        p.fillRect(e, 0, e + 4f, h, Art.linear(e, 0, e + 4f, 0, new int[]{Ink.withAlpha(g.c(WindowFrame.TIMBER_DEEP), leftEdge ? 0.22f : 0f), Ink.withAlpha(g.c(WindowFrame.TIMBER_DEEP), leftEdge ? 0f : 0.22f)}, new float[]{0f, 1f}));
     }
 
     // ------------------------------------------------------------------ parchment
@@ -151,7 +157,7 @@ public final class Decor {
      * doing). {@code pressed} sinks it. Dark brown text reads on all three.
      */
     public void plankButton(Pen p, float l, float t, float r, float b, int style, boolean pressed) {
-        Painter g = soft(p);
+        Painter g = text(p); // text-bearing: only lightly dimmed at night so dark-brown labels stay readable
         int base = style == BUTTON_GOOD ? GOOD : (style == BUTTON_ATTENTION ? WARN : PLANK);
         int dark = style == BUTTON_GOOD ? GOOD_DARK : (style == BUTTON_ATTENTION ? WARN_DARK : PLANK_DARK);
         int light = style == BUTTON_GOOD ? GOOD_LIGHT : (style == BUTTON_ATTENTION ? WARN_LIGHT : PLANK_LIGHT);
@@ -163,7 +169,7 @@ public final class Decor {
         if (!pressed) { p.save(); p.translate(0.6f, 2.2f); p.fill(edge, Ink.solid(0x34402814)); p.restore(); }
         g.fill(edge, Ink.mix(dark, 0xFF402814, 0.25f));
         Shape face = Art.wobblyRect(new Shape(), l, ft, r, fb, 0.7f, seed);
-        p.fill(face, Ink.linear(0, ft, 0, fb, new int[]{g.c(light), g.c(base), g.c(Ink.mix(base, dark, 0.35f))}, new float[]{0f, 0.3f, 1f}));
+        p.fill(face, Art.linear(0, ft, 0, fb, new int[]{g.c(light), g.c(base), g.c(Ink.mix(base, dark, 0.2f))}, new float[]{0f, 0.3f, 1f}));
         p.save();
         p.clipShape(face);
         g.rng.seed(seed);
@@ -171,10 +177,10 @@ public final class Decor {
         int lines = Math.max(3, (int) ((fb - ft) / 5f));
         for (int i = 0; i < lines; i++) {
             float y = ft + (fb - ft) * (i + 0.5f) / lines + g.rng.s();
-            g.curve(dark, 0.7f, 0.34f, l, y, l + (r - l) * 0.33f, y + g.rng.s() * 2f, l + (r - l) * 0.66f, y + g.rng.s() * 2f, r, y + g.rng.s());
+            g.curve(dark, 0.7f, 0.26f, l, y, l + (r - l) * 0.33f, y + g.rng.s() * 2f, l + (r - l) * 0.66f, y + g.rng.s() * 2f, r, y + g.rng.s());
         }
         float kx = l + (r - l) * g.rng.r(0.7f, 0.86f), ky = ft + (fb - ft) * g.rng.r(0.3f, 0.7f);
-        g.oval(kx, ky, 3.4f, 2f, dark, 0.3f); g.oval(kx, ky, 1.6f, 0.9f, dark, 0.45f);
+        g.oval(kx, ky, 3.4f, 2f, dark, 0.22f); g.oval(kx, ky, 1.6f, 0.9f, dark, 0.35f);
         g.rect(l, ft, r, ft + 1.6f, 0xFFFFFFFF, pressed ? 0.08f : 0.3f);
         if (pressed) g.p.fillRect(l, ft, r, ft + 7f, Art.vgrad(ft, ft + 7f, 0x40301808, 0x00301808));
         p.restore();
@@ -204,7 +210,7 @@ public final class Decor {
         // board with arrow-notched ends
         Shape s = new Shape().moveTo(l + 8f, bt).lineTo(r - 8f, bt + 0.6f).lineTo(r - 1f, mid).lineTo(r - 8f, bb).lineTo(l + 8f, bb - 0.6f).lineTo(l + 1f, mid).close();
         p.save(); p.translate(0.8f, 2.6f); p.fill(s, Ink.solid(0x38402814)); p.restore();
-        p.fill(s, Ink.linear(0, bt, 0, bb, new int[]{g.c(0xFF9C6E48), g.c(0xFF7E5636), g.c(0xFF684428)}, new float[]{0f, 0.4f, 1f}));
+        p.fill(s, Art.linear(0, bt, 0, bb, new int[]{g.c(0xFF9C6E48), g.c(0xFF7E5636), g.c(0xFF684428)}, new float[]{0f, 0.4f, 1f}));
         p.save();
         p.clipShape(s);
         g.rng.seed(Math.round(l + t * 3));
@@ -221,6 +227,76 @@ public final class Decor {
             g.leaf(x, mid + 1f, 6f, 3f, i == 0 ? -40f : -140f, 0xFFA8CC78, 0.95f);
             g.leaf(x, mid + 1f, 6f, 3f, i == 0 ? 40f : 140f, 0xFF8CB868, 0.95f);
             g.blossom(x - 1.6f * d, mid + 1f, 2.4f, 0, 0xFFFFD8E4, 1f);
+        }
+    }
+
+    /** Status board looks for {@link #statusBoard}. */
+    public static final int STATUS_OK = 0, STATUS_OFF = 1, STATUS_PROBLEM = 2;
+    /** The board's face starts this fraction of the way down the rectangle (the cords are above it). */
+    public static final float STATUS_BOARD_TOP_FRACTION = 0.2f;
+
+    /**
+     * STATIC. The status board: a dark wooden board hanging by two short cords that run up to
+     * y = t (tie them to the underside of the window sill). The face fills the rectangle from
+     * STATUS_BOARD_TOP_FRACTION down to 3 units above b and is kept calm and dark for two
+     * centred lines of cream text; the small motifs are tucked into its two top corners.
+     * STATUS_OK is warm dark wood with a blossom sprig, STATUS_OFF a dormant slate blue-grey
+     * with a crescent moon, STATUS_PROBLEM a deep red with alert marks. Dimmed only gently at
+     * night so the three never look alike.
+     */
+    public void statusBoard(Pen p, float l, float t, float r, float b, int style) {
+        Painter g = soft(p);
+        float bt = t + (b - t) * STATUS_BOARD_TOP_FRACTION, bb = b - 3f, mid = (bt + bb) / 2f;
+        int top, face, low, edge, groove;
+        if (style == STATUS_OFF) { top = 0xFF4A5870; face = 0xFF404C62; low = 0xFF364154; edge = 0xFF1E2634; groove = 0xFF7C8CA6; }
+        else if (style == STATUS_PROBLEM) { top = 0xFF98302A; face = 0xFF8C2820; low = 0xFF76201A; edge = 0xFF3E0E0A; groove = 0xFFD8705C; }
+        else { top = 0xFF744E30; face = 0xFF664226; low = 0xFF58381F; edge = 0xFF2E1C0E; groove = 0xFFB88A5E; }
+        // cords and their iron eyes
+        for (int i = 0; i < 2; i++) {
+            float cx = i == 0 ? l + 30f : r - 30f;
+            g.line(cx, t - 1f, cx + (i == 0 ? -0.6f : 0.6f), bt + 3f, 0xFF8C7450, 2.4f);
+            g.line(cx - 0.5f, t - 1f, cx - 0.5f + (i == 0 ? -0.6f : 0.6f), bt + 3f, 0xFFD8C090, 1f);
+            g.oval(cx, bt + 4.4f, 2.6f, 2.6f, WindowFrame.IRON); g.oval(cx - 0.6f, bt + 3.8f, 0.8f, 0.8f, 0xFFB8A89C);
+        }
+        Shape s = Art.wobblyRect(new Shape(), l + 1f, bt, r - 1f, bb, 0.7f, 41 + style);
+        p.save(); p.translate(1f, 3f); p.fill(s, Ink.solid(0x40301808)); p.restore();
+        p.fill(s, Art.linear(0, bt, 0, bb, new int[]{g.c(top), g.c(face), g.c(low)}, new float[]{0f, 0.35f, 1f}));
+        p.save();
+        p.clipShape(s);
+        g.rng.seed(97 + style);
+        int lines = Math.max(3, (int) ((bb - bt) / 7f));
+        for (int i = 0; i < lines; i++) {
+            float y = bt + (bb - bt) * (i + 0.5f) / lines + g.rng.s();
+            g.curve(edge, 0.7f, 0.2f, l, y, l + (r - l) * 0.33f, y + g.rng.s() * 1.6f, l + (r - l) * 0.66f, y + g.rng.s() * 1.6f, r, y + g.rng.s());
+        }
+        g.rect(l, bt, r, bt + 1.5f, groove, 0.5f);
+        p.restore();
+        // a thin carved border, close to the edge so the middle stays clear
+        g.stroke(Art.wobblyRect(new Shape(), l + 4.5f, bt + 3.5f, r - 4.5f, bb - 3.5f, 0.4f, 43 + style), groove, 0.8f, 0.45f);
+        g.stroke(s, edge, 1.1f, 0.85f);
+        // small motifs tucked into the two top corners, clear of both lines of text
+        float my = bt + 10.5f;
+        for (int i = 0; i < 2; i++) {
+            float x = i == 0 ? l + 12f : r - 12f, d = i == 0 ? 1f : -1f;
+            if (style == STATUS_OFF) {
+                if (i == 1) {
+                    Shape m = new Shape().moveTo(x + 1.3f, my - 4.8f).cubicTo(x - 5.6f, my - 4.3f, x - 5.6f, my + 4.3f, x + 1.3f, my + 4.8f)
+                        .cubicTo(x - 2.1f, my + 2.4f, x - 2.1f, my - 2.4f, x + 1.3f, my - 4.8f).close();
+                    g.fill(m, 0xFFD8DCEC, 0.9f);
+                } else {
+                    p.fill(Art.sparkle(new Shape(), x - 1f, my - 0.6f, 3f), g.ink(0xFFD8DCEC, 0.85f));
+                    p.fill(Art.sparkle(new Shape(), x + 3f, my + 3.6f, 1.5f), g.ink(0xFFD8DCEC, 0.7f));
+                }
+            } else if (style == STATUS_PROBLEM) {
+                Shape mark = new Shape().moveTo(x - 1.4f, my - 5.4f).cubicTo(x - 1.8f, my - 7.4f, x + 1.8f, my - 7.4f, x + 1.4f, my - 5.4f)
+                    .lineTo(x + 0.7f, my + 1.4f).cubicTo(x + 0.5f, my + 2.2f, x - 0.5f, my + 2.2f, x - 0.7f, my + 1.4f).close()
+                    .oval(x, my + 5f, 1.4f, 1.4f);
+                g.fill(mark, 0xFFFFE08A, 0.95f);
+            } else {
+                g.leaf(x, my + 0.6f, 5.2f, 2.6f, i == 0 ? -40f : -140f, 0xFFA8CC78, 0.95f);
+                g.leaf(x, my + 0.6f, 5.2f, 2.6f, i == 0 ? 40f : 140f, 0xFF8CB868, 0.95f);
+                g.blossom(x - 1.5f * d, my + 0.6f, 2.2f, 0, 0xFFFFD8E4, 1f);
+            }
         }
     }
 
@@ -258,7 +334,7 @@ public final class Decor {
             g.oval(bx, y + 16f, 1.2f, 1.2f, WindowFrame.IRON);
         }
         Shape b = Art.wobblyRect(new Shape(), l, y, r, y + 7f, 0.5f, Math.round(l + y));
-        p.fill(b, Ink.linear(0, y, 0, y + 7f, new int[]{g.c(WindowFrame.TIMBER_LIGHT), g.c(WindowFrame.TIMBER), g.c(WindowFrame.TIMBER_DARK)}, new float[]{0f, 0.35f, 1f}));
+        p.fill(b, Art.linear(0, y, 0, y + 7f, new int[]{g.c(WindowFrame.TIMBER_LIGHT), g.c(WindowFrame.TIMBER), g.c(WindowFrame.TIMBER_DARK)}, new float[]{0f, 0.35f, 1f}));
         g.line(l + 2f, y + 3.4f, r - 2f, y + 3.8f, WindowFrame.TIMBER_DEEP, 0.6f, 0.35f);
         g.line(l + 2f, y + 5.2f, r - 2f, y + 5f, WindowFrame.TIMBER_DEEP, 0.6f, 0.25f);
         g.stroke(b, WindowFrame.TIMBER_DEEP, 0.9f, 0.7f);
@@ -306,7 +382,7 @@ public final class Decor {
         p.save();
         p.rotate(lean, x + (lean > 0 ? 0 : w), y);
         Shape s = new Shape().roundRect(x, y - h, x + w, y, 1.2f);
-        p.fill(s, Ink.linear(x, 0, x + w, 0, new int[]{g.c(Ink.mix(col, 0xFFFFFFFF, 0.2f)), g.c(col), g.c(Ink.mix(col, 0xFF000000, 0.25f))}, new float[]{0f, 0.4f, 1f}));
+        p.fill(s, Art.linear(x, 0, x + w, 0, new int[]{g.c(Ink.mix(col, 0xFFFFFFFF, 0.2f)), g.c(col), g.c(Ink.mix(col, 0xFF000000, 0.25f))}, new float[]{0f, 0.4f, 1f}));
         g.rect(x + 0.6f, y - h * 0.86f, x + w - 0.6f, y - h * 0.8f, trim); g.rect(x + 0.6f, y - h * 0.24f, x + w - 0.6f, y - h * 0.18f, trim);
         g.oval(x + w / 2f, y - h * 0.52f, w * 0.22f, w * 0.22f, trim);
         g.stroke(s, WindowFrame.TIMBER_DEEP, 0.7f, 0.5f);
@@ -355,7 +431,7 @@ public final class Decor {
         float mx = x + w * 0.90f;
         mushroomDeco(g, mx - 5f, y - 14f, 0.9f, 0xFFD8644C); mushroomDeco(g, mx + 4f, y - 15f, 0.75f, 0xFFE8A048);
         Shape pot = new Shape().moveTo(mx - 11f, y - 14f).lineTo(mx + 11f, y - 14f).lineTo(mx + 8f, y).lineTo(mx - 8f, y).close();
-        g.p.fill(pot, Ink.linear(mx - 11f, 0, mx + 11f, 0, new int[]{g.c(0xFFD8D0C0), g.c(0xFFB8AC98), g.c(0xFF8C8070)}, new float[]{0f, 0.5f, 1f}));
+        g.p.fill(pot, Art.linear(mx - 11f, 0, mx + 11f, 0, new int[]{g.c(0xFFD8D0C0), g.c(0xFFB8AC98), g.c(0xFF8C8070)}, new float[]{0f, 0.5f, 1f}));
         g.rect(mx - 9.6f, y - 9f, mx + 9.6f, y - 7f, 0xFF6C8CB0, 0.8f);
     }
 
@@ -379,7 +455,7 @@ public final class Decor {
         for (int i = 0; i < 4; i++) {
             g.p.save(); g.p.rotate(lean[i], cx + ox[i], y);
             Shape c = new Shape().moveTo(cx + ox[i] - ww[i], y).lineTo(cx + ox[i] - ww[i], y - hh[i] * 0.7f).lineTo(cx + ox[i], y - hh[i]).lineTo(cx + ox[i] + ww[i], y - hh[i] * 0.7f).lineTo(cx + ox[i] + ww[i], y).close();
-            g.p.fill(c, Ink.linear(cx + ox[i] - ww[i], 0, cx + ox[i] + ww[i], 0, new int[]{g.c(0xFFE4D0FC), g.c(0xFFB490E8), g.c(0xFF8460C0)}, new float[]{0f, 0.45f, 1f}));
+            g.p.fill(c, Art.linear(cx + ox[i] - ww[i], 0, cx + ox[i] + ww[i], 0, new int[]{g.c(0xFFE4D0FC), g.c(0xFFB490E8), g.c(0xFF8460C0)}, new float[]{0f, 0.45f, 1f}));
             g.line(cx + ox[i], y - hh[i], cx + ox[i], y, 0xFFFFFFFF, 0.6f, 0.5f);
             g.stroke(c, 0xFF5C4490, 0.7f, 0.5f);
             g.p.restore();
@@ -409,7 +485,7 @@ public final class Decor {
         g.oval(cx + 1f, y - 0.4f, 21f, 2.4f, WindowFrame.TIMBER_DEEP, 0.4f);
         g.line(cx - 12f, y - 3f, cx - 15f, y, 0xFF2C2828, 2.6f); g.line(cx + 12f, y - 3f, cx + 15f, y, 0xFF2C2828, 2.6f);
         Shape pot = new Shape().moveTo(cx - 17f, y - 20f).cubicTo(cx - 24f, y - 8f, cx - 14f, y - 1f, cx, y - 1f).cubicTo(cx + 14f, y - 1f, cx + 24f, y - 8f, cx + 17f, y - 20f).close();
-        p.fill(pot, Ink.linear(cx - 20f, 0, cx + 20f, 0, new int[]{g.c(0xFF6C6468), g.c(0xFF3C383C), g.c(0xFF242024)}, new float[]{0f, 0.4f, 1f}));
+        p.fill(pot, Art.linear(cx - 20f, 0, cx + 20f, 0, new int[]{g.c(0xFF6C6468), g.c(0xFF3C383C), g.c(0xFF242024)}, new float[]{0f, 0.4f, 1f}));
         g.oval(cx, y - 20f, 18.4f, 3.6f, 0xFF4C4448);
         g.mode = Painter.ROOM_SOFT;
         g.oval(cx, y - 20f, 15.6f, 2.6f, 0xFF7CD868);
@@ -443,7 +519,8 @@ public final class Decor {
     /**
      * STATIC. Slider track across the rectangle (drawn centred vertically, about 10 units
      * thick): a carved wooden groove, filled with a leafy green vine from the left up to
-     * {@code fraction} (0..1). Leave half a thumb's width of margin inside l and r.
+     * {@code fraction} (0..1), with ten evenly spaced notches underneath (positions 0..9, the
+     * first at l and the last at r). Leave half a thumb's width of margin inside l and r.
      */
     public void sliderTrack(Pen p, float l, float t, float r, float b, float fraction) {
         Painter g = soft(p);
@@ -461,9 +538,9 @@ public final class Decor {
             }
         }
         // notch marks
-        for (int i = 0; i <= 4; i++) {
-            float nx = Art.lerp(l, r, i / 4f);
-            g.line(nx, cy + 8f, nx, cy + 11f, INK_BROWN, 1f, 0.4f);
+        for (int i = 0; i < SLIDER_STEPS; i++) {
+            float nx = Art.lerp(l, r, i / (SLIDER_STEPS - 1f));
+            g.line(nx, cy + 8f, nx, cy + (i == 0 || i == SLIDER_STEPS - 1 ? 12f : 10.6f), INK_BROWN, 1f, 0.45f);
         }
     }
 
@@ -473,7 +550,7 @@ public final class Decor {
         float r = radius * (pressed ? 0.94f : 1f);
         if (!pressed) g.oval(cx + 0.6f, cy + 2.4f, r, r, 0xFF301808, 0.3f);
         g.oval(cx, cy, r, r, 0xFFB8862C);
-        p.fillOval(cx, cy, r - 1.6f, r - 1.6f, Ink.radial(cx - r * 0.3f, cy - r * 0.35f, r * 1.5f, new int[]{g.c(pressed ? 0xFFE0B888 : 0xFFF4D4A4), g.c(0xFFC8985C), g.c(0xFF9C6E40)}, new float[]{0f, 0.6f, 1f}));
+        p.fillOval(cx, cy, r - 1.6f, r - 1.6f, Art.radial(cx - r * 0.3f, cy - r * 0.35f, r * 1.5f, new int[]{g.c(pressed ? 0xFFE0B888 : 0xFFF4D4A4), g.c(0xFFC8985C), g.c(0xFF9C6E40)}, new float[]{0f, 0.6f, 1f}));
         g.blossom(cx, cy, r * 0.52f, -90f, 0xFFFFD8E4, 1f);
         g.oval(cx, cy, r * 0.14f, r * 0.14f, 0xFFE8A048);
         g.stroke(new Shape().oval(cx, cy, r, r), 0xFF7C5424, 0.8f, 0.7f);
@@ -510,7 +587,7 @@ public final class Decor {
         float kr = rad - 2.6f;
         g.oval(kx + 0.4f, cy + 1.6f, kr, kr, 0xFF301808, 0.35f);
         g.oval(kx, cy, kr, kr, on ? 0xFFB8862C : 0xFF8C7458);
-        p.fillOval(kx, cy, kr - 1.3f, kr - 1.3f, Ink.radial(kx - kr * 0.3f, cy - kr * 0.35f, kr * 1.5f, new int[]{g.c(0xFFF8E0B8), g.c(on ? 0xFFD8AC70 : 0xFFC0A078), g.c(0xFF9C7448)}, new float[]{0f, 0.6f, 1f}));
+        p.fillOval(kx, cy, kr - 1.3f, kr - 1.3f, Art.radial(kx - kr * 0.3f, cy - kr * 0.35f, kr * 1.5f, new int[]{g.c(0xFFF8E0B8), g.c(on ? 0xFFD8AC70 : 0xFFC0A078), g.c(0xFF9C7448)}, new float[]{0f, 0.6f, 1f}));
         g.oval(kx - kr * 0.3f, cy - kr * 0.34f, kr * 0.24f, kr * 0.16f, 0xFFFFFFFF, 0.6f);
     }
 
@@ -525,7 +602,7 @@ public final class Decor {
         g.fill(s, 0xFFF2E2BC);
         p.save(); p.clipShape(s);
         p.fillRect(l, t, r, t + 5f, Art.vgrad(t, t + 5f, Ink.withAlpha(g.c(0xFF8C6C3C), 0.28f), Ink.withAlpha(g.c(0xFF8C6C3C), 0f)));
-        p.fillRect(l, t, l + 4f, b, Ink.linear(l, 0, l + 4f, 0, new int[]{Ink.withAlpha(g.c(0xFF8C6C3C), 0.18f), Ink.withAlpha(g.c(0xFF8C6C3C), 0f)}, new float[]{0f, 1f}));
+        p.fillRect(l, t, l + 4f, b, Art.linear(l, 0, l + 4f, 0, new int[]{Ink.withAlpha(g.c(0xFF8C6C3C), 0.18f), Ink.withAlpha(g.c(0xFF8C6C3C), 0f)}, new float[]{0f, 1f}));
         p.restore();
         g.stroke(s, 0xFFC4A46C, 0.8f, 0.8f);
         g.curve(focused ? 0xFFD8862C : INK_BROWN, focused ? 1.8f : 1.2f, focused ? 1f : 0.7f, l + 6f, b - 4f, (l + r) / 2f, b - 4.6f, r - 6f, b - 3.8f);

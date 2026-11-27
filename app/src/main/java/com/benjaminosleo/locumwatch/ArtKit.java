@@ -42,10 +42,15 @@ final class ArtKit {
 
     private ArtKit() {}
 
-    /** Local time as a decimal hour, 0..24: drives the lighting of every piece of art. */
+    /**
+     * The "lighting hour" (0..24) that drives every piece of art. It follows the real sun
+     * (see {@link SunClock}), so a November afternoon goes dark when it really does.
+     */
     static float hourNow() {
         Calendar c = Calendar.getInstance();
-        return c.get(Calendar.HOUR_OF_DAY) + c.get(Calendar.MINUTE) / 60f;
+        double clock = c.get(Calendar.HOUR_OF_DAY) + c.get(Calendar.MINUTE) / 60.0 + c.get(Calendar.SECOND) / 3600.0;
+        double tz = (c.get(Calendar.ZONE_OFFSET) + c.get(Calendar.DST_OFFSET)) / 3600000.0;
+        return SunClock.lightingHour(clock, c.get(Calendar.DAY_OF_YEAR), tz);
     }
 
     // ---- shared decor painter (UI thread only) ----
@@ -54,15 +59,44 @@ final class ArtKit {
     /** Changes whenever the decor lighting changes, so cached bitmaps know to rebuild. */
     static int decorGeneration;
 
+    /** The shared decor painter, lit for the hour last set by {@link #refreshLight()}. Main thread only. */
     static Decor decor() {
-        float h = hourNow();
-        if (decor == null) decor = new Decor();
-        if (Math.abs(h - decorHour) > 0.25f) {
-            decor.setHour(h);
-            decorHour = h;
+        if (decor == null) {
+            decor = new Decor();
+            decorHour = hourNow();
+            decor.setHour(decorHour);
             decorGeneration++;
         }
         return decor;
+    }
+
+    /**
+     * Re-lights the decor if the light has moved on. Returns true if it changed, in which
+     * case every decorated view must be redrawn (see {@link #redrawAll}). Call from the
+     * main thread, outside drawing.
+     */
+    static boolean refreshLight() {
+        try {
+            float h = hourNow();
+            Decor d = decor();
+            if (Math.abs(h - decorHour) <= 0.25f) return false;
+            d.setHour(h);
+            decorHour = h;
+            decorGeneration++;
+            return true;
+        } catch (Throwable t) {
+            fault("lighting", t);
+            return false;
+        }
+    }
+
+    /** Redraws a view and everything inside it (after the light has changed). */
+    static void redrawAll(View v) {
+        v.invalidate();
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) redrawAll(g.getChildAt(i));
+        }
     }
 
     static int dp(Context c, float v) {
@@ -159,9 +193,9 @@ final class ArtKit {
         @Override public void draw(Canvas canvas) {
             Rect b = getBounds();
             if (b.isEmpty()) return;
-            Decor d = decor();
             if (!broken && (tile == null || tileWidth != b.width() || generation != decorGeneration)) {
                 try {
+                    Decor d = decor();
                     int h = Math.round(Decor.WALL_PERIOD * density);
                     Bitmap bmp = Bitmap.createBitmap(b.width(), h, Bitmap.Config.ARGB_8888);
                     Canvas c = new Canvas(bmp);
@@ -250,7 +284,7 @@ final class ArtKit {
         }
 
         @Override protected void onMeasure(int wSpec, int hSpec) {
-            setMeasuredDimension(dp(getContext(), 64), dp(getContext(), 40));
+            setMeasuredDimension(dp(getContext(), 64), dp(getContext(), 48));
         }
 
         @Override protected void onDraw(Canvas canvas) {
@@ -300,23 +334,47 @@ final class ArtKit {
             setMeasuredDimension(MeasureSpec.getSize(wSpec), dp(getContext(), 48));
         }
 
+        // The slider sits in a scrolling page, so a finger passing over it while scrolling
+        // must not change the value: it only takes over once the finger has clearly moved
+        // sideways, or on a plain tap.
+        private float downX, downY;
+        private int stepAtDown;
+        private final int slop = android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop();
+
         @Override public boolean onTouchEvent(MotionEvent e) {
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    getParent().requestDisallowInterceptTouchEvent(true);
-                    dragging = true;
-                    move(e.getX());
-                    return true;
-                case MotionEvent.ACTION_MOVE:
-                    move(e.getX());
-                    return true;
-                case MotionEvent.ACTION_UP:
-                    move(e.getX());
-                    // fall through
-                case MotionEvent.ACTION_CANCEL:
+                    downX = e.getX();
+                    downY = e.getY();
+                    stepAtDown = step;
                     dragging = false;
+                    return true;
+                case MotionEvent.ACTION_MOVE: {
+                    float dx = Math.abs(e.getX() - downX), dy = Math.abs(e.getY() - downY);
+                    if (!dragging && dx > slop && dx > dy) {
+                        dragging = true;
+                        getParent().requestDisallowInterceptTouchEvent(true);
+                    }
+                    if (dragging) move(e.getX());
+                    return true;
+                }
+                case MotionEvent.ACTION_UP:
+                    // a drag ends where it is; a tap (no real movement) jumps to the tapped point
+                    if (dragging || (Math.abs(e.getX() - downX) <= slop && Math.abs(e.getY() - downY) <= slop)) {
+                        move(e.getX());
+                        dragging = false;
+                        invalidate();
+                        if (listener != null) listener.onReleased(step);
+                    }
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    // the page took the gesture over (a scroll): put the value back, save nothing
+                    dragging = false;
+                    if (step != stepAtDown) {
+                        step = stepAtDown;
+                        if (listener != null) listener.onMoved(step);
+                    }
                     invalidate();
-                    if (listener != null) listener.onReleased(step);
                     return true;
                 default:
                     return super.onTouchEvent(e);

@@ -2,7 +2,9 @@ package com.benjaminosleo.locumwatch.art;
 
 /**
  * How a shape is coloured: a flat colour, a linear gradient or a radial gradient.
- * Colours are 0xAARRGGBB ints. Immutable; create once and reuse where possible.
+ * Colours are 0xAARRGGBB ints. The description never changes after creation, but {@link #cache}
+ * is a mutable slot owned by whichever backend draws it, so an Ink must not be shared between
+ * threads. Create once and reuse where possible.
  */
 public final class Ink {
     public static final int SOLID = 0, LINEAR = 1, RADIAL = 2;

@@ -5,7 +5,8 @@ package com.benjaminosleo.locumwatch.art;
  * Android's Canvas (in the app) and one over desktop Java2D (tools/preview) so every
  * frame can be rendered to a PNG and looked at without a phone.
  *
- * Coordinates are in pixels, y down. All fills and strokes are anti-aliased.
+ * Coordinates are in design units (the caller scales the backend by the screen density
+ * first), y down. All fills and strokes are anti-aliased.
  * Strokes always use round caps and round joins.
  */
 public interface Pen {

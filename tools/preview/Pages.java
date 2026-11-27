@@ -68,7 +68,7 @@ public class Pages {
         d.sectionHeader(p, 86, 872, 274, 918);
         label(p, "Message log", 180, 907, 16, CREAM, true, true);
         d.parchment(p, 16, 926, 344, 1244, 3);
-        String[] who = {"Rota coordinator  ·  06:42", "Rota coordinator  ·  Tuesday 21:15", "Sam (ODP)  ·  Monday 17:03"};
+        String[] who = {"Rota coordinator  \u00B7  06:42", "Rota coordinator  \u00B7  Tuesday 21:15", "Sam (ODP)  \u00B7  Monday 17:03"};
         String[] msg = {"Locum needed today 08:00 to 18:00,", "Anyone free for a long day on Thursday?", "Thanks all, shift is now covered"};
         String[] msg2 = {"obstetric theatres. Reply here.", "Bank rates apply.", ""};
         boolean[] rang = {true, true, false};
@@ -86,7 +86,7 @@ public class Pages {
         int s0 = p.drawCalls;
         d.shelf(p, Decor.SHELF_BREWING, 28, 1330, 304);
         System.out.println("shelf: " + (p.drawCalls - s0) + " draw calls");
-        label(p, "Locum Watch  ·  Mochi is on duty", 180, 1384, 12.5f, 0x8A6A48, false, true);
+        label(p, "Locum Watch  \u00B7  Mochi is on duty", 180, 1384, 12.5f, 0x8A6A48, false, true);
         Render.write(img, "decor.png");
 
         // the same pieces by candle-light
@@ -107,6 +107,32 @@ public class Pages {
         Render.write(n, "decor_night.png");
     }
 
+    /** The three status boards by day and by night, with the two lines of cream text the app lays over them. */
+    static void statusBoards() throws Exception {
+        float W = 360, rowH = 92;
+        BufferedImage img = Render.image(W * 2, rowH * 3);
+        AwtPen p = Render.pen(img);
+        String[] head = {"Mochi is on watch", "Alarm is off", "Not plugged in"};
+        String[] sub = {"The lantern is lit: locums will ring", "Tap the lantern to switch it on", "Alarms may be late: plug the phone in"};
+        for (int col = 0; col < 2; col++) {
+            Decor d = new Decor();
+            d.setHour(col == 0 ? Palette.DAY : Palette.NIGHT);
+            p.save();
+            p.translate(col * W, 0);
+            d.wall(p, W, rowH * 3, Hero.BOARD_T - 14);
+            for (int i = 0; i < 3; i++) {
+                float l = Hero.BOARD_L, t = i * rowH + 14, r = Hero.BOARD_R, b = t + (Hero.BOARD_B - Hero.BOARD_T);
+                p.fillRect(0, t - 8, W, t, Ink.solid(0xFF6E4A2E)); // stands in for the underside of the sill
+                d.statusBoard(p, l, t, r, b, i);
+                float face = t + (b - t) * Decor.STATUS_BOARD_TOP_FRACTION, mid = (face + b - 3) / 2f;
+                label(p, head[i], W / 2, mid - 1.5f, 19, CREAM, true, true);
+                label(p, sub[i], W / 2, mid + 16f, 13, CREAM, false, true);
+            }
+            p.restore();
+        }
+        Render.write(img, "status_boards.png");
+    }
+
     static void alarmPage() throws Exception {
         float W = 360, H = 640;
         BufferedImage img = Render.image(W * 2 + 8, H);
@@ -123,12 +149,12 @@ public class Pages {
             int a = p.drawCalls;
             art.drawStatic(p, W, H);
             int b = p.drawCalls;
-            art.drawLive(p, W, H, 3.2 + i * 0.21);
+            art.drawLive(p, W, H, i == 0 ? 2.9 : 8.2); // left: mid-lap; right: bouncing at the glass
             if (i == 0) System.out.println("alarm page: static " + (b - a) + ", live " + (p.drawCalls - b) + " draw calls");
             AlarmArt.messageRect(W, H, r);
             d.parchment(p, r[0], r[1], r[2], r[3], 4);
             label(p, "Rota coordinator", W / 2, r[1] + 34, 18, BROWN, true, true);
-            label(p, "Burnley locums  ·  06:42", W / 2, r[1] + 54, 12.5f, 0x8A6A48, false, true);
+            label(p, "Burnley locums  \u00B7  06:42", W / 2, r[1] + 54, 12.5f, 0x8A6A48, false, true);
             label(p, "Locum needed today 08:00 to 18:00,", W / 2, r[1] + 88, 16, BROWN, false, true);
             label(p, "obstetric theatres. Reply here or", W / 2, r[1] + 110, 16, BROWN, false, true);
             label(p, "ring switchboard.", W / 2, r[1] + 132, 16, BROWN, false, true);
@@ -136,10 +162,19 @@ public class Pages {
             int s = p.drawCalls;
             art.stopButton(p, r[0], r[1], r[2], r[3], i == 1);
             if (i == 0) System.out.println("stop button: " + (p.drawCalls - s) + " draw calls, " + (r[2] - r[0]) + " x " + (r[3] - r[1]));
-            label(p, "STOP", W / 2, (r[1] + r[3]) / 2f + 14 + (i == 1 ? 7 : -3), 52, 0xFFF8E8, true, true);
+            float size = (r[3] - r[1]) * 0.36f; // the app sets the word to 0.36 of the button height
+            label(p, "STOP", W / 2, (r[1] + r[3]) / 2f + size * 0.27f + (i == 1 ? 7 : -3), size, 0xFFF4DC, true, true);
+            if (i == 0) {
+                Graphics2D g = text(p);
+                g.setFont(new Font(Font.SERIF, Font.BOLD, 1).deriveFont(size));
+                float tw = (float) g.getFontMetrics().getStringBounds("STOP", g).getWidth();
+                // paws: centred 38 units in from each end, about 17 units half-width at this size
+                float pawInner = r[0] + 38f + 17f, textLeft = W / 2 - tw / 2f;
+                System.out.println("STOP word " + Math.round(tw) + " wide at " + Math.round(size) + " units; clear space to each paw " + Math.round(textLeft - pawInner) + " units");
+            }
             AlarmArt.secondaryRect(W, H, r);
             art.secondaryButton(p, r[0], r[1], r[2], r[3], i == 1);
-            label(p, "Stop and open WhatsApp", W / 2, (r[1] + r[3]) / 2f + 3 + (i == 1 ? 2.5f : 0), 13.5f, 0xFFF8E8, true, true);
+            label(p, "Stop and open WhatsApp", W / 2, (r[1] + r[3]) / 2f + 3 + (i == 1 ? 2.5f : 0), 15f, 0xFFF4DC, true, true);
             p.restore();
         }
         Render.write(img, "alarm_page.png");

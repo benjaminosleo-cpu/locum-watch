@@ -6,8 +6,8 @@ package com.benjaminosleo.locumwatch.art;
  * and drawn by {@link Mochi}. Plain mutable numbers so it can be reused every frame.
  */
 public final class MochiPose {
-    /** Views: seen from the side, or facing the window. */
-    public static final int SIDE = 0, FRONT = 1;
+    /** Views: seen from the side, facing the window, or from behind (running away round the far turn). */
+    public static final int SIDE = 0, FRONT = 1, BACK = 2;
     /** Eye styles. */
     public static final int EYE_OPEN = 0, EYE_SLEEP = 1, EYE_HAPPY = 2, EYE_SPARKLE = 3;
     /** Things carried: nothing, a grass blade in the mouth, a leaf in the mouth, a blossom balanced on the nose. */
@@ -58,7 +58,7 @@ public final class MochiPose {
     public float itemPhase;
     /** 0..1 petal resting on the head. */
     public float petal;
-    /** Sleeping z's: negative for none, else a looping 0..1 phase. */
+    /** Sleeping z's: negative for none, else the number of z cycles since they began (keeps counting up). */
     public float zzz;
     /** 0..1 alert marks around the head, with a looping phase. */
     public float alert, alertPhase;
@@ -70,8 +70,18 @@ public final class MochiPose {
     public float pawsUp;
     /** Front view: true when the paws rest on the sill and must be drawn over the window frame. */
     public boolean overSill;
-    /** 0..1 strength of floating hearts (afterglow happiness), with a looping phase. */
+    /** Floating hearts: 0..1 fades them in, above 1 also makes them bigger; with a looping phase. */
     public float hearts, heartPhase;
+    /** 0..1: how much of the cottage's candle-light falls on Mochi (1 when up at the window). */
+    public float warm;
+    /** 0..1: the head petal's fall, 0 high above and 1 settled on the crown. */
+    public float petalFall;
+    /** Carried blossom: offset from its resting place on the nose (head units) and opacity. */
+    public float itemX, itemY, itemAlpha;
+    /** Scratching leg (when hindOver): where the foot and the knee are, in body units. */
+    public float reachX, reachY, kneeX, kneeY;
+    /** Body units: where a hind foot rests on the ground, and its knee (the scratching leg starts and ends here). */
+    public static final float FOOT_X = -19f, FOOT_Y = 34f, KNEE_X = -22f, KNEE_Y = 22f;
 
     public MochiPose() { stand(); }
 
@@ -86,6 +96,8 @@ public final class MochiPose {
         item = ITEM_NONE; itemPhase = 0f; petal = 0f; zzz = -1f;
         alert = 0f; alertPhase = 0f; dust = 0f; dustPhase = 0f; scratch = 0f;
         pawsUp = 0f; overSill = false; hearts = 0f; heartPhase = 0f;
+        warm = 0f; petalFall = 1f; itemX = 0f; itemY = 0f; itemAlpha = 1f;
+        reachX = FOOT_X; reachY = FOOT_Y; kneeX = KNEE_X; kneeY = KNEE_Y;
         return this;
     }
 
@@ -100,6 +112,8 @@ public final class MochiPose {
         item = o.item; itemPhase = o.itemPhase; petal = o.petal; zzz = o.zzz;
         alert = o.alert; alertPhase = o.alertPhase; dust = o.dust; dustPhase = o.dustPhase; scratch = o.scratch;
         pawsUp = o.pawsUp; overSill = o.overSill; hearts = o.hearts; heartPhase = o.heartPhase;
+        warm = o.warm; petalFall = o.petalFall; itemX = o.itemX; itemY = o.itemY; itemAlpha = o.itemAlpha;
+        reachX = o.reachX; reachY = o.reachY; kneeX = o.kneeX; kneeY = o.kneeY;
         return this;
     }
 

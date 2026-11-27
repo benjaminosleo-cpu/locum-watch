@@ -4,11 +4,13 @@ package com.benjaminosleo.locumwatch.art;
  * Artwork for the full-screen alarm page, for any width and height.
  *
  * Layout (ask the *Rect methods; each fills {l, t, r, b}):
- *  - top: a small arched cottage window with Mochi bouncing excitedly at the sill
+ *  - top: a small arched cottage window where Mochi gallops round the clearing and bounces at the sill
  *  - middle third: free for a parchment holding the sender and message ({@link #messageRect})
  *  - lower third: the big STOP button ({@link #stopRect}) and a small second button ({@link #secondaryRect})
  *
- * {@link #drawStatic} is STATIC (cache it); {@link #drawLive} is ANIMATED, about 75 draw calls.
+ * Threading: one instance per thread; never share an instance between threads.
+ *
+ * {@link #drawStatic} is STATIC (cache it); {@link #drawLive} is ANIMATED, at most about 150 draw calls.
  * The parchment itself comes from {@link Decor#parchment}; the buttons from
  * {@link #stopButton} and {@link #secondaryButton}.
  */
@@ -19,7 +21,7 @@ public final class AlarmArt {
     private final GardenScene garden = new GardenScene();
     private final Decor decor = new Decor();
     private final Mochi mochi = new Mochi();
-    private final MochiPose pose = new MochiPose();
+    private final MochiDirector director = new MochiDirector(1);
     private Palette pal = Palette.at(Palette.DAY);
 
     private final Shape opening = new Shape(), flame = new Shape(), spark = new Shape();
@@ -39,46 +41,68 @@ public final class AlarmArt {
         pal = Palette.at(hour);
         garden.setHour(hour);
         decor.setHour(hour);
-        mochi.setLight(pal);
+        mochi.setLight(pal, 1f); // the room is ablaze with candle-light: Mochi is always lit warm here
         builtW = -1f;
     }
 
     /** The arched window opening. */
     public static void windowRect(float w, float h, float[] out) {
-        float ww = Math.min(w * 0.66f, h * 0.42f), wh = h * 0.285f, top = h * 0.07f;
+        float ww = Math.min(w * 0.66f, h * 0.42f), wh = h * 0.24f, top = h * 0.06f;
         out[0] = (w - ww) / 2f; out[1] = top; out[2] = (w + ww) / 2f; out[3] = top + wh;
     }
 
-    /** Where the message parchment goes (middle third). */
+    /** Where the message parchment goes: from under the window sill down to just above the STOP button. */
     public static void messageRect(float w, float h, float[] out) {
-        out[0] = 18f; out[1] = h * 0.405f; out[2] = w - 18f; out[3] = h * 0.67f;
+        float top = h * 0.335f, bottom = stopTop(h) - 10f;
+        out[0] = 18f; out[1] = top; out[2] = w - 18f; out[3] = Math.max(top, bottom);
     }
 
-    /** Where the STOP button goes: at least 300 x 130 on a 360-wide screen. */
+    /**
+     * Where the STOP button goes: about 317 x 128 on a 360 x 640 screen. On a short or
+     * landscape screen it is moved up and, if need be, made shorter; it never leaves the
+     * screen and its height is never negative.
+     */
     public static void stopRect(float w, float h, float[] out) {
-        float bw = Math.min(w - 40f, Math.max(300f, w * 0.88f)), bh = Math.max(130f, h * 0.215f);
-        out[0] = (w - bw) / 2f; out[1] = h * 0.70f; out[2] = (w + bw) / 2f; out[3] = h * 0.70f + bh;
+        float bw = Math.min(w - 40f, Math.max(300f, w * 0.88f));
+        out[0] = (w - bw) / 2f; out[1] = stopTop(h); out[2] = (w + bw) / 2f; out[3] = stopBottom(h);
     }
 
-    /** Where the smaller "stop and open WhatsApp" button goes. */
+    /** Where the smaller "stop and open WhatsApp" button goes (zero height if there is no room for it). */
     public static void secondaryRect(float w, float h, float[] out) {
-        float bw = Math.min(w - 80f, 240f), top = h * 0.70f + Math.max(130f, h * 0.215f) + 10f;
-        out[0] = (w - bw) / 2f; out[1] = top; out[2] = (w + bw) / 2f; out[3] = Math.min(h - 6f, top + 40f);
+        float bw = Math.max(0f, Math.min(w - 48f, 300f));
+        float limit = Math.max(0f, h - 6f);
+        float top = Math.min(stopBottom(h) + 10f, limit), bottom = Math.min(top + 46f, limit);
+        out[0] = (w - bw) / 2f; out[1] = top; out[2] = (w + bw) / 2f; out[3] = Math.max(top, bottom);
+    }
+
+    private static float stopHeight(float h) { return Math.max(118f, h * 0.20f); }
+
+    private static float stopBottom(float h) { return Math.max(0f, Math.min(h * 0.685f + stopHeight(h), h - 64f)); }
+
+    private static float stopTop(float h) {
+        float bottom = stopBottom(h);
+        // on a short screen the button shrinks, but its top never rises above where the message starts
+        return Math.min(bottom, Math.max(bottom - stopHeight(h), h * 0.335f));
     }
 
     private void build(float w, float h) {
         if (w == builtW && h == builtH) return;
         builtW = w; builtH = h;
         windowRect(w, h, win);
-        float l = win[0], t = win[1], r = win[2], b = win[3], arch = (r - l) * 0.16f;
+        float l = win[0], t = win[1], r = win[2], b = win[3], arch = (r - l) * ARCH;
         opening.reset().moveTo(l, b).lineTo(r, b).lineTo(r, t + arch).quadTo((l + r) / 2f, t - arch, l, t + arch).close();
         float cx = (l + r) / 2f, cy = (t + b) / 2f;
         iHalo = Art.glow(cx, cy, (r - l) * 1.05f, 0xFFFFC860, 0.75f);
         iCandleGlow = Art.glow(0, 0, 46f, WindowFrame.CANDLE_GLOW, 0.6f);
     }
 
-    /** Scale that maps hero units onto this window (the view is a close crop of the hero's lower window). */
-    private float crop() { return (win[2] - win[0]) / 236f; }
+    /** Hero units shown across the window: wide enough to take in the whole running track. */
+    private static final float VIEW_W = 292f;
+    /** How far the arch rises, as a fraction of the window's width (shallow, so the far turns of the track stay in view). */
+    private static final float ARCH = 0.11f;
+
+    /** Scale that maps hero units onto this window (the view is a crop of the hero's lower window). */
+    private float crop() { return (win[2] - win[0]) / VIEW_W; }
 
     private void intoGarden(Pen p) {
         float k = crop();
@@ -102,13 +126,13 @@ public final class AlarmArt {
         garden.drawBackground(p);
         p.restore();
         // timber frame: outer board with the opening cut out
-        float th = 13f, arch = (r - l) * 0.16f;
+        float th = 13f, arch = (r - l) * ARCH;
         Shape f = new Shape();
         f.moveTo(l - th, t - th * 0.4f).quadTo(cx, t - th * 0.9f, r + th, t - th * 0.5f).quadTo(r + th + 1f, (t + b) / 2f, r + th - 0.6f, b)
             .lineTo(l - th + 0.6f, b).quadTo(l - th - 1f, (t + b) / 2f, l - th, t - th * 0.4f).close();
         f.moveTo(l, b).lineTo(r, b).lineTo(r, t + arch).quadTo(cx, t - arch, l, t + arch).close();
         p.save(); p.translate(1.5f, 3f); p.fill(f, Ink.solid(0x30301808)); p.restore();
-        p.fill(f, Ink.linear(0, t - th, 0, b, new int[]{g.c(WindowFrame.TIMBER_LIGHT), g.c(WindowFrame.TIMBER), g.c(WindowFrame.TIMBER_DARK)}, new float[]{0f, 0.3f, 1f}));
+        p.fill(f, Art.linear(0, t - th, 0, b, new int[]{g.c(WindowFrame.TIMBER_LIGHT), g.c(WindowFrame.TIMBER), g.c(WindowFrame.TIMBER_DARK)}, new float[]{0f, 0.3f, 1f}));
         p.save();
         p.clipShape(f);
         g.rng.seed(901);
@@ -156,10 +180,14 @@ public final class AlarmArt {
     }
 
     /**
-     * ANIMATED. Mochi bouncing at the window with paws on the sill, a pulsing halo round the
-     * window, flickering candles and a few sparkles. Draw over the static layer every frame.
+     * ANIMATED. Mochi's whole alarm routine seen through the window (a startle, galloping laps
+     * of the clearing, the dash up to the glass, bouncing with paws on the sill, dropping away,
+     * and round again), a pulsing halo round the window, flickering candles and a few sparkles.
+     * {@code t} is seconds since the page appeared; the routine loops exactly, however long it
+     * runs. Draw over the static layer every frame.
      */
     public void drawLive(Pen p, float w, float h, double t) {
+        t = Math.max(0.0, Art.clock(t)); // a broken clock must not break the picture
         build(w, h);
         float l = win[0], tp = win[1], r = win[2], b = win[3], cx = (l + r) / 2f, cy = (tp + b) / 2f;
         // halo pulsing with the ring of the alarm
@@ -169,14 +197,18 @@ public final class AlarmArt {
         p.scale(1f + 0.06f * pulse, 1f + 0.06f * pulse, cx, cy);
         p.fillOval(cx, cy, (r - l) * 1.05f, (r - l) * 1.05f, iHalo);
         p.restore();
-        // Mochi, clipped to the opening
-        MochiAnim.windowExcited(pose, (float) (t % 1000.0));
-        pose.x = Hero.RING_X; pose.y = Hero.AT_WINDOW_Y; pose.scale = Hero.AT_WINDOW_SCALE; pose.facing = 1f;
+        // Mochi runs the whole EXCITED routine in this little window: laps of the clearing, the
+        // dash that grows towards the glass, bouncing with paws over the sill, drop, and round again
+        director.poseAlarm(t);
+        MochiPose pose = director.pose;
+        pose.warm = 1f;
+        boolean close = pose.view == MochiPose.FRONT && pose.scale > 1.25f;
         p.save();
         p.clipShape(opening);
         intoGarden(p);
+        if (!close) mochi.draw(p, pose);
         garden.drawLiveFront(p, t);
-        mochi.draw(p, pose);
+        if (close) mochi.draw(p, pose);
         p.restore();
         p.save();
         intoGarden(p);
@@ -225,7 +257,7 @@ public final class AlarmArt {
         p.fill(base, Art.vgrad(ft, b, STOP_DARK, STOP_DEEP));
         Shape face = slab(l, ft, r, fb, cut);
         int top = pressed ? Ink.mix(STOP_RED, STOP_DARK, 0.25f) : STOP_LIGHT, mid = pressed ? Ink.mix(STOP_RED, STOP_DARK, 0.4f) : STOP_RED;
-        p.fill(face, Ink.linear(0, ft, 0, fb, new int[]{top, mid, Ink.mix(mid, STOP_DARK, 0.45f)}, new float[]{0f, 0.35f, 1f}));
+        p.fill(face, Art.linear(0, ft, 0, fb, new int[]{top, mid, Ink.mix(mid, STOP_DARK, 0.45f)}, new float[]{0f, 0.35f, 1f}));
         p.save();
         p.clipShape(face);
         if (pressed) {
@@ -239,9 +271,10 @@ public final class AlarmArt {
         float in = 9f;
         p.stroke(slab(l + in, ft + in, r - in, fb - in, cut * 0.76f), Ink.solid(Ink.withAlpha(STOP_CREAM, pressed ? 0.8f : 1f)), 3.2f);
         p.stroke(face, Ink.solid(STOP_DEEP), 1.6f);
-        float py = (ft + fb) / 2f + 2f, ps = Math.min(1.5f, (fb - ft) / 80f);
-        paw(p, l + 46f, py, ps, -10f, pressed);
-        paw(p, r - 46f, py, ps, 10f, pressed);
+        // paws sit well out at the ends so the word in the middle has room to breathe
+        float py = (ft + fb) / 2f + 2f, ps = Math.min(1.12f, (fb - ft) / 100f);
+        paw(p, l + 38f, py, ps, -10f, pressed);
+        paw(p, r - 38f, py, ps, 10f, pressed);
     }
 
     private static Shape slab(float l, float t, float r, float b, float cut) {
@@ -265,8 +298,8 @@ public final class AlarmArt {
     }
 
     /**
-     * STATIC. The smaller "stop and open WhatsApp" button: a forest-green pill with a cream
-     * rim and a leaf at each end. Cream text reads best.
+     * STATIC. The smaller "stop and open WhatsApp" button: a plain forest-green pill with a
+     * cream rim, left clear from end to end for the label. Cream text reads best.
      */
     public void secondaryButton(Pen p, float l, float t, float r, float b, boolean pressed) {
         float depth = 5f, sink = pressed ? 3.5f : 0f, ft = t + sink, fb = b - depth + sink * 0.3f, rad = (fb - ft) / 2f;
@@ -277,11 +310,5 @@ public final class AlarmArt {
         p.fill(face, Art.vgrad(ft, fb, top, bot));
         p.stroke(new Shape().roundRect(l + 4f, ft + 4f, r - 4f, fb - 4f, rad - 4f), Ink.solid(Ink.withAlpha(STOP_CREAM, 0.85f)), 1.4f);
         p.stroke(face, Ink.solid(0xFF123428), 1.2f);
-        float cy = (ft + fb) / 2f;
-        for (int i = 0; i < 2; i++) {
-            float x = i == 0 ? l + rad + 2f : r - rad - 2f;
-            p.fill(Art.leaf(new Shape(), x, cy + 4f, 9f, 5f, i == 0 ? -120f : -60f), Ink.solid(0xFFCDE6A6));
-            p.fill(Art.leaf(new Shape(), x, cy + 4f, 8f, 4.4f, i == 0 ? -50f : -130f), Ink.solid(0xFFA9CC82));
-        }
     }
 }

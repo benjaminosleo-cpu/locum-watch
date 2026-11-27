@@ -17,21 +17,31 @@ rings a loud bedside alarm when someone posts a locum request.
 ## The look
 
 The app is drawn as the inside of a witch's cottage. The main page is a window onto a
-garden where Mochi the capybara sleeps, grazes and plays, lit for the real time of day;
-when an alarm rings Mochi races round and jumps up at the window. The lantern on the sill
-is lit when the alarm is switched on (tap it to switch). Settings are further down the page.
+garden where Mochi the capybara sleeps, grazes and plays; when an alarm rings Mochi races
+round and jumps up at the window, and stays lively for a few minutes afterwards.
+
+- The light follows the real sun in South Manchester (`SunClock`), so winter afternoons go dark early.
+- The board hanging under the window says whether the alarm is ON or OFF and turns red with
+  the first problem if anything needs attention (tap it to jump to Checks).
+- The lantern on the sill is lit when the alarm is on. One tap lights it; putting it out asks first.
+- Tap Mochi and she reacts. Settings, checks and the message log are further down the page.
 
 All artwork is drawn in code in `app/src/main/java/.../art/` (pure Java, no image files),
 through the small `Pen` interface. `AndroidPen` draws it in the app; `tools/preview/render.sh`
-renders the same code to PNGs and GIFs on a desktop so changes can be checked without a phone.
-If any artwork ever fails to draw, the app falls back to plain colours and the alarm and
-buttons keep working.
+renders the same code to PNGs and GIFs on a desktop so changes can be checked without a phone,
+and `ArtTest` draws every layer at every time of day through a checking pen on each build.
+
+The artwork is never allowed to get in the way of the alarm: every drawing call is guarded,
+and if any of it fails the page falls back to plain colours with the same message and
+buttons. To save the spare phone's battery the animation slows down when Mochi is asleep
+and when the screen has not been touched for a while. Diagnostics shows the measured frame rate.
 
 ## Build and install
 
-Every push to `main` runs the unit tests (including a replay of the whole group history),
+Every push to `main` runs the unit tests (a replay of the whole group history, and the artwork checks),
 builds a signed APK and, if everything passes, publishes it as GitHub Release
 `v<VERSION>.<run number>`. Obtainium follows these releases. Bump `VERSION` for bigger changes.
+After installing any update on the spare phone, run a test alarm.
 
 The signing key is in `keystore/` (private repo) so every build is signed the same way.
 

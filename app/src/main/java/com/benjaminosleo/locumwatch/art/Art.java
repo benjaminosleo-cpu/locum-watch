@@ -37,16 +37,33 @@ final class Art {
         return ((n & 0x7fffffff) % 100000) / 100000f;
     }
 
+    /** A usable animation clock: not-a-number and infinite times become 0, so a broken clock cannot break a picture. */
+    static double clock(double t) { return t != t || t == Double.POSITIVE_INFINITY || t == Double.NEGATIVE_INFINITY ? 0.0 : t; }
+
     static Ink ink(int argb) { return Ink.solid(argb); }
+
+    /**
+     * A linear gradient that is always well-formed: if the two ends coincide (a piece drawn at
+     * zero size) they are nudged apart, because backends reject a zero-length gradient.
+     */
+    static Ink linear(float x0, float y0, float x1, float y1, int[] colors, float[] stops) {
+        if (x0 == x1 && y0 == y1) y1 = y0 + 0.01f;
+        return Ink.linear(x0, y0, x1, y1, colors, stops);
+    }
+
+    /** A radial gradient that is always well-formed: the radius is kept above zero. */
+    static Ink radial(float cx, float cy, float radius, int[] colors, float[] stops) {
+        return Ink.radial(cx, cy, radius > 0.01f ? radius : 0.01f, colors, stops);
+    }
 
     /** Vertical two-colour gradient. */
     static Ink vgrad(float y0, float y1, int c0, int c1) {
-        return Ink.linear(0, y0, 0, y1, new int[]{c0, c1}, new float[]{0f, 1f});
+        return linear(0, y0, 0, y1, new int[]{c0, c1}, new float[]{0f, 1f});
     }
 
     /** Soft round glow: colour at the centre fading to transparent at the rim. */
     static Ink glow(float cx, float cy, float r, int c, float alpha) {
-        return Ink.radial(cx, cy, r,
+        return radial(cx, cy, r,
             new int[]{Ink.withAlpha(c, alpha), Ink.withAlpha(c, alpha * 0.45f), Ink.withAlpha(c, 0f)},
             new float[]{0f, 0.45f, 1f});
     }

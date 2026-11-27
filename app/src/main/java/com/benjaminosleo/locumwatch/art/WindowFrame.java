@@ -17,6 +17,8 @@ public final class WindowFrame {
 
     /** Lantern flame position (hero units). */
     static final float LX = 298f, LY = 391f;
+    /** Reach of the candle's glow on the walls, and where the sun-catcher crystal hangs. */
+    private static final float GLOW_R = 190f, CRYSTAL_X = 266f;
     private static final float L = Hero.WIN_L, T = Hero.WIN_T, R = Hero.WIN_R, B = Hero.WIN_B;
 
     private Palette pal = Palette.at(Palette.DAY);
@@ -60,6 +62,7 @@ public final class WindowFrame {
         bottles(g);
         mortar(g);
         lantern(g);
+        hat(g);
         roomLight(g);
     }
 
@@ -98,7 +101,7 @@ public final class WindowFrame {
         f.moveTo(21, 30.5f).quadTo(100, 28.6f, 180, 30f).quadTo(270, 31.4f, 339.4f, 29.4f)
             .quadTo(340.4f, 200, 338.6f, B).lineTo(22.4f, B).quadTo(20.4f, 220, 21, 30.5f).close();
         f.moveTo(L, B).lineTo(R, B).lineTo(R, 66).quadTo(180, 22, L, 66).close();
-        p.fill(f, Ink.linear(0, 30, 0, B, new int[]{g.c(TIMBER_LIGHT), g.c(TIMBER), g.c(TIMBER_DARK)}, new float[]{0f, 0.25f, 1f}));
+        p.fill(f, Art.linear(0, 30, 0, B, new int[]{g.c(TIMBER_LIGHT), g.c(TIMBER), g.c(TIMBER_DARK)}, new float[]{0f, 0.25f, 1f}));
         p.save();
         p.clipShape(f);
         g.rng.seed(301);
@@ -154,13 +157,13 @@ public final class WindowFrame {
             float ht = 70f, hb = B - 3f, ft = 58f, fb = B + 5f;
             Shape glass = new Shape().moveTo(hx, ht).lineTo(fx, ft).lineTo(fx, fb).lineTo(hx, hb).close();
             // old glass: a faint milky tint with slanting reflections
-            p.fill(glass, Ink.linear(hx, ht, fx, fb, new int[]{Ink.withAlpha(pal.lit(0xFFE8F6FF), 0.30f), Ink.withAlpha(pal.lit(0xFFE8F6FF), 0.10f), Ink.withAlpha(pal.lit(0xFFE8F6FF), 0.24f)}, new float[]{0f, 0.5f, 1f}));
+            p.fill(glass, Art.linear(hx, ht, fx, fb, new int[]{Ink.withAlpha(pal.lit(0xFFE8F6FF), 0.15f), Ink.withAlpha(pal.lit(0xFFE8F6FF), 0.04f), Ink.withAlpha(pal.lit(0xFFE8F6FF), 0.11f)}, new float[]{0f, 0.5f, 1f}));
             p.save();
             p.clipShape(glass);
             for (int i = 0; i < 3; i++) {
                 float y = 110f + i * 104f;
                 Shape r = new Shape().moveTo(hx, y).lineTo(fx, y - 30f).lineTo(fx, y - 14f).lineTo(hx, y + 16f).close();
-                p.fill(r, Ink.solid(Ink.withAlpha(0xFFFFFFFF, 0.16f + 0.05f * (1f - pal.night))));
+                p.fill(r, Ink.solid(Ink.withAlpha(0xFFFFFFFF, 0.09f + 0.05f * (1f - pal.night))));
             }
             p.restore();
             // glazing bars, following the perspective
@@ -184,7 +187,7 @@ public final class WindowFrame {
     private void beamAndHerbs(Painter g) {
         Pen p = g.p;
         // heavy lintel beam across the top
-        p.fillRect(0, 0, Hero.W, 23f, Ink.linear(0, 0, 0, 23f, new int[]{g.c(TIMBER_DARK), g.c(TIMBER), g.c(TIMBER_DEEP)}, new float[]{0f, 0.45f, 1f}));
+        p.fillRect(0, 0, Hero.W, 23f, Art.linear(0, 0, 0, 23f, new int[]{g.c(TIMBER_DARK), g.c(TIMBER), g.c(TIMBER_DEEP)}, new float[]{0f, 0.45f, 1f}));
         g.rng.seed(311);
         for (int i = 0; i < 10; i++) {
             float y = 2f + i * 2.1f;
@@ -193,16 +196,16 @@ public final class WindowFrame {
         knot(g, 148f, 11f, 2.6f); knot(g, 236f, 14f, 2f);
         p.fillRect(0, 23f, Hero.W, 31f, Art.vgrad(23f, 31f, Ink.withAlpha(g.c(TIMBER_DEEP), 0.4f), Ink.withAlpha(g.c(TIMBER_DEEP), 0f)));
         // bundles of drying herbs hung from iron hooks
-        bundle(g, 58f, 20f, 66f, 0xFF8A9A5C, 0xFFB08CD8, 0);
-        bundle(g, 84f, 20f, 44f, 0xFFA8A060, 0xFFF0C860, 1);
-        bundle(g, 304f, 20f, 60f, 0xFF7E9A62, 0xFF9CB878, 2);
-        bundle(g, 278f, 20f, 40f, 0xFF9C9458, 0xFFE89C8C, 1);
+        // two bundles of drying herbs, hung so they lie over the side timbers and leave the view clear
+        bundle(g, 26f, 20f, 62f, 0xFF8A9A5C, 0xFFB08CD8, 0);
+        bundle(g, 334f, 20f, 56f, 0xFF7E9A62, 0xFF9CB878, 2);
         // a sun-catcher crystal on a thread
-        g.line(250f, 22f, 250f, 80f, 0xFFE8E0D0, 0.6f, 0.8f);
-        Shape c = new Shape().moveTo(250f, 80f).lineTo(255f, 87f).lineTo(250f, 99f).lineTo(245f, 87f).close();
-        p.fill(c, Ink.linear(245f, 80f, 255f, 99f, new int[]{Ink.withAlpha(0xFFFFFFFF, 0.9f), Ink.withAlpha(pal.lit(0xFFB8E4F8), 0.8f), Ink.withAlpha(pal.lit(0xFFE0B8F0), 0.85f)}, new float[]{0f, 0.5f, 1f}));
-        g.line(250f, 80f, 250f, 99f, 0xFFFFFFFF, 0.5f, 0.7f);
-        g.line(245f, 87f, 255f, 87f, 0xFFFFFFFF, 0.5f, 0.6f);
+        float cx = CRYSTAL_X;
+        g.line(cx, 22f, cx, 78f, 0xFFE8E0D0, 0.6f, 0.8f);
+        Shape c = new Shape().moveTo(cx, 78f).lineTo(cx + 5f, 85f).lineTo(cx, 97f).lineTo(cx - 5f, 85f).close();
+        p.fill(c, Art.linear(cx - 5f, 78f, cx + 5f, 97f, new int[]{Ink.withAlpha(0xFFFFFFFF, 0.9f), Ink.withAlpha(pal.lit(0xFFB8E4F8), 0.8f), Ink.withAlpha(pal.lit(0xFFE0B8F0), 0.85f)}, new float[]{0f, 0.5f, 1f}));
+        g.line(cx, 78f, cx, 97f, 0xFFFFFFFF, 0.5f, 0.7f);
+        g.line(cx - 5f, 85f, cx + 5f, 85f, 0xFFFFFFFF, 0.5f, 0.6f);
     }
 
     /** An upside-down bunch: kind 0 lavender spikes, 1 round flower heads, 2 leafy sprigs. */
@@ -210,9 +213,9 @@ public final class WindowFrame {
         g.rng.seed((int) (x * 7));
         g.line(x, y - 4f, x, y + 8f, 0xFFD8C8A8, 0.8f);
         g.oval(x, y - 2f, 1.8f, 1.8f, IRON);
-        int n = 9;
+        int n = 7;
         for (int i = 0; i < n; i++) {
-            float a = (i - (n - 1) / 2f) * 5.2f + g.rng.s() * 2f;
+            float a = (i - (n - 1) / 2f) * 3.6f + g.rng.s() * 1.4f;
             double ra = Math.toRadians(90f + a);
             float l2 = len * g.rng.r(0.78f, 1f);
             float ex = x + (float) Math.cos(ra) * l2, ey = y + 8f + (float) Math.sin(ra) * l2;
@@ -242,7 +245,7 @@ public final class WindowFrame {
         Pen p = g.p;
         float st = Hero.SILL_TOP, sf = Hero.SILL_FRONT, sb = Hero.SILL_BOTTOM;
         Shape top = new Shape().moveTo(24, st).lineTo(336, st).lineTo(356, sf).lineTo(4, sf).close();
-        p.fill(top, Ink.linear(0, st, 0, sf, new int[]{g.c(TIMBER), g.c(TIMBER_LIGHT)}, new float[]{0f, 1f}));
+        p.fill(top, Art.linear(0, st, 0, sf, new int[]{g.c(TIMBER), g.c(TIMBER_LIGHT)}, new float[]{0f, 1f}));
         p.save();
         p.clipShape(top);
         g.rng.seed(321);
@@ -258,7 +261,7 @@ public final class WindowFrame {
         p.restore();
         // rounded front edge
         Shape front = new Shape().roundRect(3, sf - 1f, 357, sb, 4.5f);
-        p.fill(front, Ink.linear(0, sf, 0, sb, new int[]{g.c(TIMBER_LIGHT), g.c(TIMBER), g.c(TIMBER_DARK)}, new float[]{0f, 0.3f, 1f}));
+        p.fill(front, Art.linear(0, sf, 0, sb, new int[]{g.c(TIMBER_LIGHT), g.c(TIMBER), g.c(TIMBER_DARK)}, new float[]{0f, 0.3f, 1f}));
         for (int i = 0; i < 4; i++) {
             float y = sf + 2.4f + i * 2.4f;
             g.curve(TIMBER_DEEP, 0.7f, 0.35f, 6, y, 130, y + g.rng.s(), 250, y + g.rng.s(), 354, y);
@@ -297,7 +300,7 @@ public final class WindowFrame {
             if (i % 3 == 1) g.blossom(ex, ey, 2.6f, 0, 0xFFFFF4FA, 1f);
         }
         Shape pot = new Shape().moveTo(px - 11f, py - 16f).lineTo(px + 11f, py - 16f).lineTo(px + 8f, py).lineTo(px - 8f, py).close();
-        p.fill(pot, Ink.linear(px - 11f, 0, px + 11f, 0, new int[]{g.c(0xFFE09468), g.c(TERRACOTTA), g.c(0xFF9C5438)}, new float[]{0f, 0.45f, 1f}));
+        p.fill(pot, Art.linear(px - 11f, 0, px + 11f, 0, new int[]{g.c(0xFFE09468), g.c(TERRACOTTA), g.c(0xFF9C5438)}, new float[]{0f, 0.45f, 1f}));
         g.fill(new Shape().roundRect(px - 12.4f, py - 19f, px + 12.4f, py - 14.4f, 1.6f), 0xFFD88860);
         g.line(px - 11f, py - 18f, px + 4f, py - 18f, 0xFFF4B48C, 1f, 0.8f);
         g.line(px - 6.4f, py - 11f, px - 5f, py - 3f, 0xFFF4B48C, 1.4f, 0.5f);
@@ -328,7 +331,7 @@ public final class WindowFrame {
         p.fill(fl, Ink.solid(Ink.withAlpha(pal.lit(0xFFE8F8F8), 0.42f)));
         p.save();
         p.clipShape(fl);
-        p.fillRect(x - 12f, by - 11f, x + 12f, by, Ink.linear(0, by - 11f, 0, by, new int[]{Ink.withAlpha(g.c(0xFF7CD8A8), 0.92f), Ink.withAlpha(g.c(0xFF3C9C7C), 0.95f)}, new float[]{0f, 1f}));
+        p.fillRect(x - 12f, by - 11f, x + 12f, by, Art.linear(0, by - 11f, 0, by, new int[]{Ink.withAlpha(g.c(0xFF7CD8A8), 0.92f), Ink.withAlpha(g.c(0xFF3C9C7C), 0.95f)}, new float[]{0f, 1f}));
         g.oval(x, by - 11f, 9.6f, 1.5f, 0xFFB4F0CC, 0.9f);
         g.oval(x - 3f, by - 5f, 1f, 1f, 0xFFD8FFE8, 0.8f); g.oval(x + 3.6f, by - 7.4f, 0.7f, 0.7f, 0xFFD8FFE8, 0.8f);
         p.restore();
@@ -359,7 +362,7 @@ public final class WindowFrame {
         g.oval(x + 14.6f, by - 27.6f, 3.6f, 3.6f, 0xFFB0B0AA);
         Shape bowl = new Shape().moveTo(x - 14f, by - 14f).lineTo(x + 14f, by - 14f).cubicTo(x + 13f, by - 4f, x + 8f, by - 2.4f, x + 6f, by - 2f)
             .lineTo(x + 7.4f, by).lineTo(x - 7.4f, by).lineTo(x - 6f, by - 2f).cubicTo(x - 8f, by - 2.4f, x - 13f, by - 4f, x - 14f, by - 14f).close();
-        p.fill(bowl, Ink.linear(x - 14f, 0, x + 14f, 0, new int[]{g.c(0xFFD8D8D0), g.c(0xFFB4B4AC), g.c(0xFF86867E)}, new float[]{0f, 0.5f, 1f}));
+        p.fill(bowl, Art.linear(x - 14f, 0, x + 14f, 0, new int[]{g.c(0xFFD8D8D0), g.c(0xFFB4B4AC), g.c(0xFF86867E)}, new float[]{0f, 0.5f, 1f}));
         g.oval(x, by - 14f, 14f, 2.6f, 0xFFE4E4DC);
         g.oval(x, by - 13.8f, 11.6f, 1.8f, 0xFF7C8C5C);
         g.oval(x - 3f, by - 14.2f, 4f, 0.9f, 0xFFA4BC6C);
@@ -378,9 +381,9 @@ public final class WindowFrame {
         // glass
         Shape glass = new Shape().moveTo(x - 10f, by - 4f).lineTo(x - 11.4f, by - 41f).lineTo(x + 11.4f, by - 41f).lineTo(x + 10f, by - 4f).close();
         if (armed) {
-            p.fill(glass, Ink.radial(x, LY, 26f, new int[]{0xFFFFF8D0, 0xF2FFD478, 0xE6F0A040}, new float[]{0f, 0.5f, 1f}));
+            p.fill(glass, Art.radial(x, LY, 26f, new int[]{0xFFFFF8D0, 0xF2FFD478, 0xE6F0A040}, new float[]{0f, 0.5f, 1f}));
         } else {
-            p.fill(glass, Ink.linear(x - 11f, 0, x + 11f, 0, new int[]{Ink.withAlpha(g.c(0xFFC8D8E0), 0.75f), Ink.withAlpha(g.c(0xFF8C9CA8), 0.7f)}, new float[]{0f, 1f}));
+            p.fill(glass, Art.linear(x - 11f, 0, x + 11f, 0, new int[]{Ink.withAlpha(g.c(0xFFC8D8E0), 0.75f), Ink.withAlpha(g.c(0xFF8C9CA8), 0.7f)}, new float[]{0f, 1f}));
         }
         // candle
         g.mode = armed ? Painter.RAW : Painter.ROOM;
@@ -403,28 +406,73 @@ public final class WindowFrame {
         g.oval(x - 13.4f, by - 41f, 1.4f, 1.4f, BRASS); g.oval(x + 13.4f, by - 41f, 1.4f, 1.4f, BRASS);
     }
 
+    /** A witch's hat on a peg under the sill: crooked point, wide brim, a sprig tucked in the band. */
+    private void hat(Painter g) {
+        Pen p = g.p;
+        float x = 34f, y = 503f; // middle of the brim's lower edge
+        // shadow on the plaster, then the peg
+        g.blob(TIMBER_DEEP, 0.16f, x - 20, y - 2, x - 8, y - 24, x - 12, y - 42, x - 4, y - 44, x + 10, y - 20, x + 24, y - 4, x + 4, y + 5);
+        g.line(x + 1f, y - 31f, x + 4f, y - 28f, TIMBER_DARK, 3.6f);
+        g.oval(x + 1f, y - 31f, 2.2f, 2.2f, TIMBER_LIGHT);
+        // cone, bent over at the tip
+        Shape cone = new Shape().moveTo(x - 12f, y - 7f).cubicTo(x - 9f, y - 22f, x - 5f, y - 33f, x - 10f, y - 43f)
+            .cubicTo(x - 14f, y - 49f, x - 20f, y - 45f, x - 21f, y - 41f).cubicTo(x - 15f, y - 44f, x - 12f, y - 40f, x - 10f, y - 36f)
+            .cubicTo(x + 2f, y - 34f, x + 10f, y - 20f, x + 13f, y - 7f).close();
+        p.fill(cone, Art.linear(x - 14f, 0, x + 14f, 0, new int[]{g.c(0xFF6A5490), g.c(0xFF4C3A70), g.c(0xFF352850)}, new float[]{0f, 0.5f, 1f}));
+        g.curve(0xFF8C78B4, 1f, 0.6f, x - 8.4f, y - 12f, x - 6f, y - 24f, x - 5f, y - 32f);
+        g.stroke(cone, 0xFF261C3C, 0.9f, 0.7f);
+        // brim, seen a little from below
+        Shape brim = new Shape().oval(x, y - 5f, 22f, 6.4f);
+        p.fill(brim, Art.vgrad(y - 11f, y + 2f, g.c(0xFF55427C), g.c(0xFF352850)));
+        g.oval(x, y - 6.6f, 12.6f, 3f, 0xFF2C2144, 0.9f);
+        g.stroke(brim, 0xFF261C3C, 0.9f, 0.7f);
+        // band with a brass buckle and a sprig of rosemary
+        Shape band = new Shape().moveTo(x - 12f, y - 7.6f).quadTo(x, y - 3.6f, x + 13f, y - 7.6f).lineTo(x + 12f, y - 12f).quadTo(x, y - 8f, x - 11.2f, y - 12f).close();
+        g.fill(band, 0xFF7C9A56);
+        g.fill(new Shape().roundRect(x - 2.6f, y - 10.4f, x + 3f, y - 5.2f, 1f), BRASS);
+        g.rect(x - 1.1f, y - 9f, x + 1.5f, y - 6.6f, 0xFF7C9A56);
+        g.line(x + 8f, y - 9f, x + 14f, y - 20f, 0xFF5C8C48, 0.9f);
+        for (int i = 0; i < 4; i++) {
+            g.leaf(x + 9.4f + i * 1.4f, y - 11.4f - i * 2.5f, 4.6f, 2f, -150f, 0xFF9CC070, 1f);
+            g.leaf(x + 9.4f + i * 1.4f, y - 11.4f - i * 2.5f, 4.6f, 2f, -20f, 0xFF86B45C, 1f);
+        }
+    }
+
     private void roomLight(Painter g) {
         Pen p = g.p;
         // steady part of the candle glow (the flicker is in the live layer)
         if (armed) {
-            float a = 0.10f + 0.34f * pal.night;
+            float a = 0.10f + 0.34f * pal.night, cy = LY + 10f;
             Shape mask = new Shape().moveTo(0, 0).lineTo(Hero.W, 0).lineTo(Hero.W, Hero.H).lineTo(0, Hero.H).close();
             mask.moveTo(L, B).lineTo(R, B).lineTo(R, 66).quadTo(180, 22, L, 66).close();
             p.save();
             p.clipShape(mask);
-            p.fillRect(0, 0, Hero.W, Hero.H, holeGlow(a));
+            // above the lantern the glow is round; below it is squashed so that it has faded to
+            // nothing by the bottom edge of the hero, where the page wall takes over
+            p.save();
+            p.clipRect(0, 0, Hero.W, cy);
+            p.fillRect(0, 0, Hero.W, cy, holeGlow(a));
+            p.restore();
+            p.save();
+            p.clipRect(0, cy, Hero.W, Hero.H);
+            p.scale(1f, (Hero.H - 1f - cy) / GLOW_R, LX, cy);
+            p.fillOval(LX, cy, GLOW_R, GLOW_R, holeGlow(a));
+            p.restore();
             p.restore();
         }
         // gentle shading into the corners of the room
         int dark = Ink.mix(0xFF3A2414, 0xFF140C10, pal.night);
         float a = 0.16f + 0.22f * pal.night;
         p.fillRect(0, 0, Hero.W, 36, Art.vgrad(0, 36, Ink.withAlpha(dark, a), Ink.withAlpha(dark, a * 0.3f)));
-        p.fillRect(0, 440, Hero.W, Hero.H, Art.vgrad(440, Hero.H, Ink.withAlpha(dark, 0f), Ink.withAlpha(dark, a * 0.5f)));
+        // (under the sill the shade swells and then dies away to exactly nothing at the bottom edge,
+        // so the hero's last row matches the page wall that continues below it)
+        p.fillRect(0, 436, Hero.W, Hero.H - 2f, Art.linear(0, 436, 0, Hero.H - 2f,
+            new int[]{Ink.withAlpha(dark, 0f), Ink.withAlpha(dark, a * 0.4f), Ink.withAlpha(dark, 0f)}, new float[]{0f, 0.42f, 1f}));
     }
 
     /** Candle glow as an ink; painted only on the wall strips so the garden hole stays clear. */
     private Ink holeGlow(float a) {
-        return Art.glow(LX, LY + 10f, 190f, CANDLE_GLOW, a);
+        return Art.glow(LX, LY + 10f, GLOW_R, CANDLE_GLOW, a);
     }
 
     // =====================================================================================
@@ -434,6 +482,7 @@ public final class WindowFrame {
      * flask and the sun-catcher. {@code t} in seconds; loops smoothly.
      */
     public void drawLive(Pen p, double t) {
+        t = Art.clock(t);
         if (armed) {
             float f = 0.5f * Art.wave(t, 0.37) + 0.3f * Art.wave(t, 0.23) + 0.2f * Art.wave(t, 1.9);
             p.save();
@@ -454,7 +503,7 @@ public final class WindowFrame {
         glint(p, 98f, 402f, 2.6f, gl * (0.45f + 0.55f * Art.hump(Art.frac(t / 5.2))));
         glint(p, 114.4f, 407f, 1.8f, gl * (0.3f + 0.7f * Art.hump(Art.frac(t / 6.4 + 0.4))));
         float sw = Art.wave(t, 7.0);
-        glint(p, 250f + 2.2f * sw, 87f, 3.4f + 1.4f * Math.abs(sw), (0.35f + 0.65f * Math.abs(sw)) * (0.4f + 0.6f * day));
+        glint(p, CRYSTAL_X + 2.2f * sw, 85f, 3.4f + 1.4f * Math.abs(sw), (0.35f + 0.65f * Math.abs(sw)) * (0.4f + 0.6f * day));
     }
 
     private void glint(Pen p, float x, float y, float r, float a) {
